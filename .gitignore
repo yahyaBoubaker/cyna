@@ -1,0 +1,10 @@
+.env.local
+vendor/
+node_modules/
+var/
+dist/
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+mysql_data/

@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CYNA Mobile Preview</title>
+  <style>
+    :root {
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #102033;
+      background: #dce6f2;
+      --blue: #0b3a75;
+      --cyan: #18a4bc;
+      --ink: #102033;
+      --line: #d8e1ec;
+      --bg: #f4f7fb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(24, 164, 188, .22), transparent 28%),
+        linear-gradient(135deg, #eef4fb, #cddced);
+    }
+    .stage {
+      display: grid;
+      grid-template-columns: minmax(280px, 390px) minmax(260px, 420px);
+      gap: 28px;
+      align-items: center;
+      width: min(980px, 100%);
+    }
+    .talk {
+      color: var(--ink);
+    }
+    .talk h1 {
+      margin: 0 0 12px;
+      font-size: clamp(32px, 5vw, 54px);
+      line-height: 1;
+    }
+    .talk p {
+      margin: 0 0 18px;
+      color: #475569;
+      line-height: 1.5;
+      font-size: 17px;
+    }
+    .talk ul {
+      margin: 0;
+      padding-left: 18px;
+      color: #334155;
+      line-height: 1.8;
+    }
+    .phone {
+      width: min(390px, 100%);
+      height: 790px;
+      max-height: calc(100vh - 48px);
+      margin-inline: auto;
+      border: 12px solid #0a1220;
+      border-radius: 36px;
+      background: var(--bg);
+      overflow: hidden;
+      box-shadow: 0 24px 70px rgba(15, 23, 42, .28);
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+    header {
+      padding: 18px 18px 12px;
+      background: white;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 900;
+      color: var(--blue);
+    }
+    .shield {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      color: white;
+      background: var(--blue);
+      border-radius: 8px;
+      font-size: 16px;
+    }
+    .badge {
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: #e6f7fb;
+      color: var(--blue);
+      font-size: 12px;
+      font-weight: 800;
+    }
+    main {
+      overflow: auto;
+      padding: 16px;
+    }
+    .hero {
+      padding: 18px;
+      border-radius: 8px;
+      color: white;
+      background: linear-gradient(135deg, var(--blue), var(--cyan));
+      margin-bottom: 14px;
+    }
+    .hero h2 {
+      margin: 0 0 8px;
+      font-size: 26px;
+      line-height: 1.05;
+    }
+    .hero p {
+      margin: 0;
+      line-height: 1.4;
+      color: rgba(255, 255, 255, .9);
+    }
+    .search {
+      display: flex;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: white;
+      margin-bottom: 14px;
+    }
+    .search input {
+      border: 0;
+      outline: 0;
+      width: 100%;
+      font: inherit;
+    }
+    .chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .chip {
+      border: 1px solid var(--line);
+      background: white;
+      border-radius: 999px;
+      padding: 8px 10px;
+      font-weight: 700;
+      font-size: 12px;
+    }
+    .card {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 20px;
+    }
+    .card p {
+      margin: 0 0 12px;
+      color: #52637a;
+      line-height: 1.4;
+    }
+    .price {
+      font-weight: 900;
+      white-space: nowrap;
+    }
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin: 12px 0;
+    }
+    .segmented button {
+      border: 1px solid var(--line);
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 8px;
+      font-weight: 800;
+      color: var(--ink);
+    }
+    .segmented button.active {
+      background: var(--blue);
+      color: white;
+      border-color: var(--blue);
+    }
+    button.primary {
+      width: 100%;
+      border: 0;
+      border-radius: 8px;
+      padding: 12px;
+      background: var(--blue);
+      color: white;
+      font-weight: 900;
+      cursor: pointer;
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    .row small {
+      color: #64748b;
+      display: block;
+      margin-top: 3px;
+    }
+    .total {
+      padding: 16px;
+      border-radius: 8px;
+      background: #102033;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      margin: 14px 0;
+      font-weight: 900;
+    }
+    .empty {
+      min-height: 420px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      color: #52637a;
+    }
+    .empty strong {
+      display: block;
+      color: var(--ink);
+      font-size: 22px;
+      margin-bottom: 8px;
+    }
+    .form {
+      display: grid;
+      gap: 10px;
+    }
+    .form input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      font: inherit;
+    }
+    .status {
+      margin-top: 10px;
+      color: var(--blue);
+      font-weight: 800;
+    }
+    nav {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border-top: 1px solid var(--line);
+      background: white;
+    }
+    nav button {
+      border: 0;
+      background: white;
+      padding: 10px 4px;
+      color: #64748b;
+      display: grid;
+      gap: 3px;
+      justify-items: center;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    nav button.active {
+      color: var(--blue);
+    }
+    .icon {
+      font-size: 20px;
+      line-height: 1;
+    }
+    @media (max-width: 780px) {
+      body { padding: 0; }
+      .stage { display: block; }
+      .talk { display: none; }
+      .phone {
+        width: 100vw;
+        height: 100vh;
+        max-height: none;
+        border: 0;
+        border-radius: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <section class="talk">
+      <h1>CYNA Mobile</h1>
+      <p>Preview mobile prete pour la presentation, sans installation Flutter. Elle montre les parcours attendus et la coherence avec le backend Symfony.</p>
+      <ul>
+        <li>Catalogue SOC, EDR, XDR</li>
+        <li>Choix de duree d'abonnement</li>
+        <li>Panier et checkout mock</li>
+        <li>Compte utilisateur et commandes</li>
+      </ul>
+    </section>
+
+    <section class="phone" aria-label="CYNA mobile preview">
+      <header>
+        <div class="brand"><span class="shield">S</span> CYNA</div>
+        <span class="badge" id="cartBadge">0 service</span>
+      </header>
+      <main id="screen"></main>
+      <nav>
+        <button class="active" data-tab="catalog"><span class="icon">⌂</span>Catalogue</button>
+        <button data-tab="cart"><span class="icon">□</span>Panier</button>
+        <button data-tab="account"><span class="icon">○</span>Compte</button>
+        <button data-tab="orders"><span class="icon">≡</span>Commandes</button>
+      </nav>
+    </section>
+  </div>
+
+  <script>
+    const products = [
+      {
+        id: 1,
+        name: 'Cyna SOC',
+        category: 'SOC',
+        description: 'Supervision cyber 24/7, alerting, rapports mensuels et accompagnement analyste.',
+        price: 499
+      },
+      {
+        id: 2,
+        name: 'Cyna EDR',
+        category: 'EDR',
+        description: 'Protection endpoint avec detection comportementale, isolation machine et tableaux de bord.',
+        price: 19.90
+      },
+      {
+        id: 3,
+        name: 'Cyna XDR',
+        category: 'XDR',
+        description: 'Correlation endpoint, cloud, identite et reseau dans une vue unifiee.',
+        price: 899
+      }
+    ];
+
+    const state = {
+      tab: 'catalog',
+      query: '',
+      cart: [],
+      user: null,
+      orders: []
+    };
+
+    const screen = document.querySelector('#screen');
+    const cartBadge = document.querySelector('#cartBadge');
+    const navButtons = [...document.querySelectorAll('nav button')];
+
+    function money(value) {
+      return `${value.toFixed(2)} EUR`;
+    }
+
+    function setTab(tab) {
+      state.tab = tab;
+      navButtons.forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
+      render();
+    }
+
+    function addToCart(productId, duration) {
+      const product = products.find(item => item.id === productId);
+      state.cart.push({ product, duration });
+      setTab('cart');
+    }
+
+    function removeFromCart(index) {
+      state.cart.splice(index, 1);
+      render();
+    }
+
+    function checkout() {
+      if (!state.user) {
+        setTab('account');
+        return;
+      }
+      const total = state.cart.reduce((sum, line) => sum + line.product.price * line.duration, 0);
+      state.orders.unshift({
+        id: Math.floor(1000 + Math.random() * 9000),
+        status: 'paid mock',
+        total,
+        date: new Date().toLocaleDateString('fr-FR')
+      });
+      state.cart = [];
+      setTab('orders');
+    }
+
+    function login(event) {
+      event.preventDefault();
+      const data = new FormData(event.currentTarget);
+      state.user = {
+        email: data.get('email') || 'user@cyna.local',
+        name: data.get('name') || 'Camille Martin',
+        role: 'ROLE_USER'
+      };
+      render();
+    }
+
+    function renderCatalog() {
+      const filtered = products.filter(product =>
+        `${product.name} ${product.category} ${product.description}`.toLowerCase().includes(state.query.toLowerCase())
+      );
+      screen.innerHTML = `
+        <section class="hero">
+          <h2>Cybersecurity SaaS</h2>
+          <p>Acheter et suivre ses abonnements SOC, EDR et XDR depuis une app mobile.</p>
+        </section>
+        <label class="search">
+          <span>⌕</span>
+          <input id="searchInput" placeholder="Rechercher SOC, EDR, XDR" value="${state.query}">
+        </label>
+        <div class="chips">
+          <span class="chip">SOC</span>
+          <span class="chip">EDR</span>
+          <span class="chip">XDR</span>
+          <span class="chip">Abonnement</span>
+        </div>
+        ${filtered.map(product => `
+          <article class="card">
+            <div class="card-top">
+              <span class="badge">${product.category}</span>
+              <span class="price">${money(product.price)}/mois</span>
+            </div>
+            <h3>${product.name}</h3>
+            <p>${product.description}</p>
+            <div class="segmented">
+              <button class="active" onclick="addToCart(${product.id}, 1)">1m</button>
+              <button onclick="addToCart(${product.id}, 12)">12m</button>
+              <button onclick="addToCart(${product.id}, 24)">24m</button>
+            </div>
+            <button class="primary" onclick="addToCart(${product.id}, 12)">Ajouter 12 mois</button>
+          </article>
+        `).join('')}
+      `;
+      document.querySelector('#searchInput').addEventListener('input', event => {
+        state.query = event.target.value;
+        renderCatalog();
+      });
+    }
+
+    function renderCart() {
+      if (!state.cart.length) {
+        screen.innerHTML = `
+          <section class="empty">
+            <div>
+              <strong>Panier vide</strong>
+              <p>Ajoute un service depuis le catalogue pour preparer une commande.</p>
+            </div>
+          </section>
+        `;
+        return;
+      }
+      const total = state.cart.reduce((sum, line) => sum + line.product.price * line.duration, 0);
+      screen.innerHTML = `
+        <h2>Panier</h2>
+        ${state.cart.map((line, index) => `
+          <div class="row">
+            <div>
+              <strong>${line.product.name}</strong>
+              <small>${line.duration} mois - ${money(line.product.price)}/mois</small>
+            </div>
+            <button onclick="removeFromCart(${index})">Retirer</button>
+          </div>
+        `).join('')}
+        <div class="total">
+          <span>Total</span>
+          <span>${money(total)}</span>
+        </div>
+        <button class="primary" onclick="checkout()">Valider la commande</button>
+        <p class="status">Le vrai projet envoie ce panier a Symfony pour calculer et creer la commande.</p>
+      `;
+    }
+
+    function renderAccount() {
+      if (state.user) {
+        screen.innerHTML = `
+          <section class="hero">
+            <h2>${state.user.name}</h2>
+            <p>${state.user.email}</p>
+          </section>
+          <div class="row"><strong>Role</strong><span>${state.user.role}</span></div>
+          <div class="row"><strong>Abonnements</strong><span>${state.orders.length || 1} actif</span></div>
+          <button class="primary" onclick="state.user = null; render()">Deconnexion</button>
+        `;
+        return;
+      }
+      screen.innerHTML = `
+        <h2>Connexion</h2>
+        <form class="form" onsubmit="login(event)">
+          <input name="name" value="Camille Martin" placeholder="Nom">
+          <input name="email" value="user@cyna.local" placeholder="Email">
+          <input value="User123!" type="password" placeholder="Mot de passe">
+          <button class="primary">Se connecter</button>
+        </form>
+        <p class="status">Compte demo: user@cyna.local / User123!</p>
+      `;
+    }
+
+    function renderOrders() {
+      if (!state.user) {
+        screen.innerHTML = `
+          <section class="empty">
+            <div>
+              <strong>Connexion requise</strong>
+              <p>Connecte-toi pour consulter les commandes et abonnements.</p>
+              <button class="primary" onclick="setTab('account')">Connexion</button>
+            </div>
+          </section>
+        `;
+        return;
+      }
+      const orders = state.orders.length ? state.orders : [
+        { id: 1001, status: 'demo', total: 5988, date: 'presentation' }
+      ];
+      screen.innerHTML = `
+        <h2>Commandes</h2>
+        ${orders.map(order => `
+          <div class="row">
+            <div>
+              <strong>Commande #${order.id}</strong>
+              <small>${order.status} - ${order.date}</small>
+            </div>
+            <span class="price">${money(order.total)}</span>
+          </div>
+        `).join('')}
+      `;
+    }
+
+    function render() {
+      cartBadge.textContent = `${state.cart.length} service${state.cart.length > 1 ? 's' : ''}`;
+      if (state.tab === 'catalog') renderCatalog();
+      if (state.tab === 'cart') renderCart();
+      if (state.tab === 'account') renderAccount();
+      if (state.tab === 'orders') renderOrders();
+    }
+
+    navButtons.forEach(button => button.addEventListener('click', () => setTab(button.dataset.tab)));
+    render();
+  </script>
+</body>
+</html>
