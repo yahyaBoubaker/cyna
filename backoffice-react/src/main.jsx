@@ -10,6 +10,14 @@ const AuthContext = createContext(null);
 async function api(path, options = {}) {
   const token = localStorage.getItem('cyna_admin_token');
   const res = await fetch(`${API_URL}${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options.headers || {}) } });
+  if (res.status === 401) {
+    // Le token JWT admin expire après 1h. Sans ça, chaque appel échouait en silence
+    // et les pages restaient bloquées en "Chargement..." indéfiniment.
+    localStorage.removeItem('cyna_admin_token');
+    localStorage.removeItem('cyna_admin_user');
+    window.location.reload();
+    throw new Error('Session expirée, reconnexion nécessaire.');
+  }
   const data = await readJson(res);
   if (!res.ok) throw new Error(data.message || data.error || 'Erreur API');
   return data;
@@ -57,7 +65,8 @@ function Dashboard() {
   const [data, setData] = useState(null);
   useEffect(() => { api('/admin/dashboard').then(setData); }, []);
   if (!data) return <p>Chargement...</p>;
-  return <><h2>Dashboard ventes</h2><section className="kpis"><Kpi label="CA" value={`${data.revenue.toFixed(2)} €`}/><Kpi label="Commandes" value={data.orders}/><Kpi label="Panier moyen" value={`${data.averageCart.toFixed(2)} €`}/></section><h3>Ventes 7 derniers jours</h3><div className="bars">{data.sales7Days.map(d => <span key={d.day} style={{ height: `${Math.max(12, Number(d.total) / 10)}px` }} title={`${d.day} ${d.total} €`}/>)}</div><Table rows={data.salesByCategory}/></>;
+  const maxSales = Math.max(...data.sales7Days.map(d => Number(d.total)), 1);
+  return <><h2>Dashboard ventes</h2><section className="kpis"><Kpi label="CA" value={`${data.revenue.toFixed(2)} €`}/><Kpi label="Commandes" value={data.orders}/><Kpi label="Panier moyen" value={`${data.averageCart.toFixed(2)} €`}/></section><h3>Ventes 7 derniers jours</h3><div className="bars">{data.sales7Days.map(d => <div className="barItem" key={d.day}><span style={{ height: `${Math.max(12, (Number(d.total) / maxSales) * 120)}px` }} title={`${d.day} ${d.total} €`}/><small>{new Date(d.day).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}</small></div>)}</div><h3>Ventes par catégorie</h3><Table rows={data.salesByCategory}/></>;
 }
 function Kpi({ label, value }) { return <article className="kpi"><span>{label}</span><strong>{value}</strong></article>; }
 
@@ -86,7 +95,26 @@ function Categories() {
 function Orders(){ const [rows,setRows]=useState([]); useEffect(()=>{api('/admin/orders').then(d=>setRows(d.items));},[]); return <Crud title="Commandes" rows={rows} fields={['id','email','status','total','created_at']}/>; }
 function UsersPage(){ const [rows,setRows]=useState([]); useEffect(()=>{api('/admin/users').then(d=>setRows(d.items));},[]); return <Crud title="Utilisateurs" rows={rows} fields={['id','email','first_name','last_name','roles']}/>; }
 function Messages(){ const [rows,setRows]=useState([]); useEffect(()=>{api('/admin/contact-messages').then(d=>setRows(d.items));},[]); return <Crud title="Messages contact" rows={rows} fields={['id','email','subject','status','created_at']}/>; }
-function HomeCarousel(){ const [rows,setRows]=useState([]); useEffect(()=>{api('/admin/home-carousel').then(d=>setRows(d.items));},[]); return <Crud title="Page d'accueil" rows={rows} fields={['id','title','position','active']}/>; }
+function HomeCarousel() {
+  const [rows, setRows] = useState([]);
+  const reload = () => api('/admin/home-carousel').then(d => setRows(d.items));
+  useEffect(reload, []);
+  const remove = async id => { await api(`/admin/home-carousel/${id}`, { method: 'DELETE' }); reload(); };
+  return <Crud title="Page d'accueil - Carrousel" rows={rows} fields={['id','title','position','active']} onDelete={remove} form={<HomeCarouselInline onDone={reload}/>}/>;
+}
+function HomeCarouselInline({ onDone }) {
+  const [f, setF] = useState({ title: '', subtitle: '', imageUrl: '', ctaUrl: '/catalogue', position: 0 });
+  return (
+    <form className="inline" onSubmit={async e => { e.preventDefault(); await api('/admin/home-carousel', { method: 'POST', body: JSON.stringify(f) }); setF({ title: '', subtitle: '', imageUrl: '', ctaUrl: '/catalogue', position: 0 }); onDone(); }}>
+      <input placeholder="Titre" value={f.title} onChange={e => setF({ ...f, title: e.target.value })}/>
+      <input placeholder="Sous-titre" value={f.subtitle} onChange={e => setF({ ...f, subtitle: e.target.value })}/>
+      <input placeholder="URL image" value={f.imageUrl} onChange={e => setF({ ...f, imageUrl: e.target.value })}/>
+      <input placeholder="Lien (ex: /catalogue)" value={f.ctaUrl} onChange={e => setF({ ...f, ctaUrl: e.target.value })}/>
+      <input type="number" placeholder="Position" value={f.position} onChange={e => setF({ ...f, position: Number(e.target.value) })}/>
+      <button>Ajouter</button>
+    </form>
+  );
+}
 
 function Crud({ title, rows, fields, onDelete, form }) {
   const [q, setQ] = useState('');
