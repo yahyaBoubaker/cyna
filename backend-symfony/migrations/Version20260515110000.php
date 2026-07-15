@@ -16,7 +16,10 @@ final class Version20260515110000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        $sql = file_get_contents(dirname(__DIR__).'/../database/schema.sql');
+        // En Docker, database/ est monté en lecture seule sur /database (voir docker-compose.yml).
+        // Hors Docker, on retombe sur le chemin relatif au dépôt.
+        $path = is_file('/database/schema.sql') ? '/database/schema.sql' : dirname(__DIR__).'/../database/schema.sql';
+        $sql = file_get_contents($path);
         foreach (array_filter(array_map('trim', explode(';', $sql))) as $statement) {
             $this->addSql($statement);
         }

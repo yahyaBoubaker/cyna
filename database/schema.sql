@@ -5,6 +5,15 @@ CREATE TABLE IF NOT EXISTS users (
   last_name VARCHAR(120) NOT NULL,
   roles JSON NOT NULL,
   password VARCHAR(255) NOT NULL,
+  verified TINYINT(1) NOT NULL DEFAULT 0,
+  verification_token VARCHAR(64) NULL,
+  verification_token_expires_at DATETIME NULL,
+  two_factor_code VARCHAR(64) NULL,
+  two_factor_expires_at DATETIME NULL,
+  two_factor_attempts INT NOT NULL DEFAULT 0,
+  pending_email VARCHAR(180) NULL,
+  email_change_token VARCHAR(64) NULL,
+  email_change_expires_at DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -104,6 +113,8 @@ CREATE TABLE IF NOT EXISTS payments (
   provider VARCHAR(40) NOT NULL,
   status VARCHAR(80) NOT NULL,
   amount DECIMAL(10,2) NOT NULL,
+  card_name VARCHAR(120) NULL,
+  card_last4 VARCHAR(4) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_payments_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

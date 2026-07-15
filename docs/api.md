@@ -12,10 +12,23 @@ Authorization: Bearer <token>
 
 | Méthode | Route | Description |
 | --- | --- | --- |
-| POST | `/auth/register` | Crée un compte utilisateur |
-| POST | `/auth/login` | Connecte et retourne un JWT |
+| POST | `/auth/register` | Crée un compte utilisateur (validation email/mot de passe, envoie un e-mail de confirmation, ne connecte pas automatiquement) |
+| GET | `/auth/verify?token=...` | Confirme l'adresse e-mail à partir du lien reçu (valide 24h) |
+| POST | `/auth/resend-verification` | Renvoie l'e-mail de confirmation si le compte existe et n'est pas encore vérifié |
+| POST | `/auth/login` | Étape 1 de la connexion : vérifie email + mot de passe (refusé avec `403 not_verified` si l'e-mail n'est pas confirmé), puis envoie un code 2FA à 6 chiffres par e-mail et répond `2fa_required`. Ne retourne PAS de JWT |
+| POST | `/auth/verify-2fa` | Étape 2 : `{email, code}`. Retourne le JWT si le code est correct (valide 10 min, usage unique, 5 tentatives max, stocké haché) |
+| GET | `/auth/confirm-email?token=...` | Applique le changement d'adresse e-mail depuis le lien reçu sur la nouvelle adresse (valide 24h). L'ancien JWT devient invalide (le `sub` porte l'ancienne adresse) |
 | GET | `/me` | Profil connecté |
-| PATCH | `/me` | Mise à jour profil |
+| PATCH | `/me` | Mise à jour profil (prénom/nom) |
+| POST | `/me/password` | Change le mot de passe : `{currentPassword, newPassword}`. L'ancien mot de passe est exigé, le nouveau doit respecter les règles CDC |
+| POST | `/me/email` | Demande de changement d'adresse : `{newEmail, password}`. Envoie un lien de confirmation à la NOUVELLE adresse ; l'actuelle reste active tant que le lien n'est pas cliqué |
+
+### Envoi d'e-mails
+
+Sans configuration, les e-mails partent vers Mailpit (capture locale, http://localhost:8025).
+Pour envoyer vers de vraies adresses : copier `.env.example` en `.env` à la racine et renseigner
+un SMTP authentifié (ex. Gmail + mot de passe d'application, STARTTLS sur le port 587),
+puis recréer le conteneur backend. Le mot de passe n'est jamais commité (`.env` est git-ignoré).
 
 ## Catalogue public
 
@@ -26,6 +39,8 @@ Authorization: Bearer <token>
 | GET | `/categories` | Liste des catégories |
 | GET | `/categories/{id}/products` | Produits d'une catégorie |
 | GET | `/search?q=...` | Recherche produits |
+| GET | `/home-carousel` | Slides actifs du carrousel d'accueil, triés par position |
+| GET | `/featured-products` | Produits mis en avant ("Top produits"), triés par position |
 | POST | `/contact` | Message support |
 
 ## Panier et commandes
@@ -35,10 +50,13 @@ Authorization: Bearer <token>
 | POST | `/cart/items` | Ajouter un produit au panier |
 | PATCH | `/cart/items/{id}` | Modifier quantité/durée |
 | DELETE | `/cart/items/{id}` | Supprimer un item |
-| POST | `/checkout` | Créer une commande avec paiement mock |
+| POST | `/checkout` | Créer une commande avec paiement simulé (adresse + informations de carte requises ; numéro complet et CVV jamais stockés, seuls le nom et les 4 derniers chiffres sont conservés) |
 | GET | `/me/orders` | Historique commandes |
 | GET | `/me/orders/{id}` | Détail commande |
+| GET | `/me/orders/{id}/invoice` | Détail facture (numéro, lignes, adresse) pour affichage/impression |
 | GET | `/me/subscriptions` | Abonnements actifs |
+| GET | `/me/address` | Adresse de facturation enregistrée |
+| PUT | `/me/address` | Créer/mettre à jour l'adresse de facturation |
 
 ## Administration
 

@@ -31,6 +31,35 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private string $password = '';
 
     #[ORM\Column]
+    private bool $verified = false;
+
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $verificationToken = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $verificationTokenExpiresAt = null;
+
+    /** Code 2FA à 6 chiffres, stocké haché (SHA-256) — jamais en clair. */
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $twoFactorCode = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $twoFactorExpiresAt = null;
+
+    #[ORM\Column(options: ['default' => 0])]
+    private int $twoFactorAttempts = 0;
+
+    /** Nouvelle adresse en attente de confirmation (changement d'e-mail). */
+    #[ORM\Column(length: 180, nullable: true)]
+    private ?string $pendingEmail = null;
+
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $emailChangeToken = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $emailChangeExpiresAt = null;
+
+    #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
     public function __construct()
@@ -105,5 +134,104 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function eraseCredentials(): void
     {
+    }
+
+    public function isVerified(): bool
+    {
+        return $this->verified;
+    }
+
+    public function setVerified(bool $verified): self
+    {
+        $this->verified = $verified;
+        return $this;
+    }
+
+    public function getVerificationToken(): ?string
+    {
+        return $this->verificationToken;
+    }
+
+    public function setVerificationToken(?string $token): self
+    {
+        $this->verificationToken = $token;
+        return $this;
+    }
+
+    public function getVerificationTokenExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->verificationTokenExpiresAt;
+    }
+
+    public function setVerificationTokenExpiresAt(?\DateTimeImmutable $expiresAt): self
+    {
+        $this->verificationTokenExpiresAt = $expiresAt;
+        return $this;
+    }
+
+    public function getTwoFactorCode(): ?string
+    {
+        return $this->twoFactorCode;
+    }
+
+    public function setTwoFactorCode(?string $hashedCode): self
+    {
+        $this->twoFactorCode = $hashedCode;
+        return $this;
+    }
+
+    public function getTwoFactorExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->twoFactorExpiresAt;
+    }
+
+    public function setTwoFactorExpiresAt(?\DateTimeImmutable $expiresAt): self
+    {
+        $this->twoFactorExpiresAt = $expiresAt;
+        return $this;
+    }
+
+    public function getTwoFactorAttempts(): int
+    {
+        return $this->twoFactorAttempts;
+    }
+
+    public function setTwoFactorAttempts(int $attempts): self
+    {
+        $this->twoFactorAttempts = $attempts;
+        return $this;
+    }
+
+    public function getPendingEmail(): ?string
+    {
+        return $this->pendingEmail;
+    }
+
+    public function setPendingEmail(?string $email): self
+    {
+        $this->pendingEmail = $email === null ? null : strtolower(trim($email));
+        return $this;
+    }
+
+    public function getEmailChangeToken(): ?string
+    {
+        return $this->emailChangeToken;
+    }
+
+    public function setEmailChangeToken(?string $token): self
+    {
+        $this->emailChangeToken = $token;
+        return $this;
+    }
+
+    public function getEmailChangeExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->emailChangeExpiresAt;
+    }
+
+    public function setEmailChangeExpiresAt(?\DateTimeImmutable $expiresAt): self
+    {
+        $this->emailChangeExpiresAt = $expiresAt;
+        return $this;
     }
 }

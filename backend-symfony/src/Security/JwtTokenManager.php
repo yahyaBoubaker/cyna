@@ -17,7 +17,9 @@ class JwtTokenManager
             'uid' => $user->getId(),
             'roles' => $user->getRoles(),
             'iat' => time(),
-            'exp' => time() + 3600,
+            // 8h au lieu d'1h : évite les déconnexions surprises en pleine démo/soutenance
+            // (le back-office ne gérait pas l'expiration proprement avant, cf. api() côté front).
+            'exp' => time() + 28800,
         ];
 
         $header = $this->base64UrlEncode(json_encode(['typ' => 'JWT', 'alg' => 'HS256']));
