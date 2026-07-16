@@ -13,8 +13,9 @@ use Symfony\Component\Security\Http\Authenticator\AbstractAuthenticator;
 use Symfony\Component\Security\Http\Authenticator\Passport\Badge\UserBadge;
 use Symfony\Component\Security\Http\Authenticator\Passport\Passport;
 use Symfony\Component\Security\Http\Authenticator\Passport\SelfValidatingPassport;
+use Symfony\Component\Security\Http\EntryPoint\AuthenticationEntryPointInterface;
 
-class JwtAuthenticator extends AbstractAuthenticator
+class JwtAuthenticator extends AbstractAuthenticator implements AuthenticationEntryPointInterface
 {
     public function __construct(
         private readonly JwtTokenManager $tokens,
@@ -52,5 +53,18 @@ class JwtAuthenticator extends AbstractAuthenticator
     public function onAuthenticationFailure(Request $request, AuthenticationException $exception): ?Response
     {
         return new JsonResponse(['error' => 'unauthorized', 'message' => $exception->getMessage()], Response::HTTP_UNAUTHORIZED);
+    }
+
+    /**
+     * Point d'entrée appelé quand une route protégée est demandée SANS jeton du tout
+     * (en-tête Authorization absent). Sans ceci, Symfony lève une exception 401 brute
+     * ("No Authentication entry point configured") au lieu d'une réponse JSON propre.
+     */
+    public function start(Request $request, ?AuthenticationException $authException = null): Response
+    {
+        return new JsonResponse([
+            'error' => 'unauthorized',
+            'message' => 'Authentification requise : connectez-vous pour accéder à cette ressource.',
+        ], Response::HTTP_UNAUTHORIZED);
     }
 }

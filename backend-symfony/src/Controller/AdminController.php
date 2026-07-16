@@ -23,6 +23,7 @@ class AdminController extends AbstractController
             'orders' => (int) $this->db->fetchOne('SELECT COUNT(*) FROM orders'),
             'averageCart' => (float) ($this->db->fetchOne('SELECT COALESCE(AVG(total),0) FROM orders WHERE status = "paid"') ?: 0),
             'sales7Days' => $this->db->fetchAllAssociative('SELECT DATE(created_at) day, SUM(total) total FROM orders WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) GROUP BY DATE(created_at) ORDER BY day'),
+            'averageCart7Days' => $this->db->fetchAllAssociative('SELECT DATE(created_at) day, AVG(total) average FROM orders WHERE status = "paid" AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) GROUP BY DATE(created_at) ORDER BY day'),
             'salesByCategory' => $this->db->fetchAllAssociative('SELECT c.name category, SUM(oi.line_total) total FROM order_items oi JOIN products p ON p.id = oi.product_id JOIN categories c ON c.id = p.category_id GROUP BY c.id, c.name'),
         ]);
     }
@@ -42,7 +43,9 @@ class AdminController extends AbstractController
             'name' => $data['name'],
             'slug' => $data['slug'] ?? $this->slug($data['name']),
             'description' => $data['description'] ?? '',
+            'technical_specs' => $data['technicalSpecs'] ?? null,
             'monthly_price' => $data['monthlyPrice'] ?? 0,
+            'stock' => (int) ($data['stock'] ?? 25),
             'active' => (int) ($data['active'] ?? true),
             'created_at' => date('Y-m-d H:i:s'),
         ]);
@@ -53,7 +56,7 @@ class AdminController extends AbstractController
     public function updateProduct(int $id, Request $request): JsonResponse
     {
         $data = $this->payload($request);
-        $fields = $this->map($data, ['categoryId' => 'category_id', 'name' => 'name', 'slug' => 'slug', 'description' => 'description', 'monthlyPrice' => 'monthly_price', 'active' => 'active']);
+        $fields = $this->map($data, ['categoryId' => 'category_id', 'name' => 'name', 'slug' => 'slug', 'description' => 'description', 'technicalSpecs' => 'technical_specs', 'monthlyPrice' => 'monthly_price', 'stock' => 'stock', 'active' => 'active']);
         if ($fields) {
             $this->db->update('products', $fields, ['id' => $id]);
         }
@@ -77,14 +80,14 @@ class AdminController extends AbstractController
     public function createCategory(Request $request): JsonResponse
     {
         $data = $this->payload($request);
-        $this->db->insert('categories', ['name' => $data['name'], 'slug' => $data['slug'] ?? $this->slug($data['name']), 'description' => $data['description'] ?? '', 'active' => 1]);
+        $this->db->insert('categories', ['name' => $data['name'], 'slug' => $data['slug'] ?? $this->slug($data['name']), 'description' => $data['description'] ?? '', 'image_url' => $data['imageUrl'] ?? null, 'active' => 1]);
         return $this->json(['id' => $this->db->lastInsertId()], 201);
     }
 
     #[Route('/categories/{id}', methods: ['PATCH'])]
     public function updateCategory(int $id, Request $request): JsonResponse
     {
-        $fields = $this->map($this->payload($request), ['name' => 'name', 'slug' => 'slug', 'description' => 'description', 'active' => 'active']);
+        $fields = $this->map($this->payload($request), ['name' => 'name', 'slug' => 'slug', 'description' => 'description', 'imageUrl' => 'image_url', 'active' => 'active']);
         if ($fields) {
             $this->db->update('categories', $fields, ['id' => $id]);
         }
@@ -177,6 +180,121 @@ class AdminController extends AbstractController
     public function deleteHomeCarousel(int $id): JsonResponse
     {
         $this->db->delete('home_carousel', ['id' => $id]);
+        return $this->json(['status' => 'deleted']);
+    }
+
+    // --- Produits vedettes de la page d'accueil ("Top produits") ---
+
+    #[Route('/featured-products', methods: ['GET'])]
+    public function featuredProducts(): JsonResponse
+    {
+        return $this->json(['items' => $this->db->fetchAllAssociative(
+            'SELECT fp.id, fp.product_id, fp.position, p.name product_name, p.monthly_price
+             FROM featured_products fp JOIN products p ON p.id = fp.product_id ORDER BY fp.position'
+        )]);
+    }
+
+    #[Route('/featured-products', methods: ['POST'])]
+    public function addFeaturedProduct(Request $request): JsonResponse
+    {
+        $data = $this->payload($request);
+        $this->db->insert('featured_products', [
+            'product_id' => (int) $data['productId'],
+            'position' => (int) ($data['position'] ?? 0),
+        ]);
+        return $this->json(['id' => $this->db->lastInsertId()], 201);
+    }
+
+    #[Route('/featured-products/{id}', methods: ['PATCH'])]
+    public function updateFeaturedProduct(int $id, Request $request): JsonResponse
+    {
+        $fields = $this->map($this->payload($request), ['productId' => 'product_id', 'position' => 'position']);
+        if ($fields) {
+            $this->db->update('featured_products', $fields, ['id' => $id]);
+        }
+        return $this->json(['status' => 'updated']);
+    }
+
+    #[Route('/featured-products/{id}', methods: ['DELETE'])]
+    public function deleteFeaturedProduct(int $id): JsonResponse
+    {
+        $this->db->delete('featured_products', ['id' => $id]);
+        return $this->json(['status' => 'deleted']);
+    }
+
+    // --- Blocs de texte de la page d'accueil ---
+
+    #[Route('/home-texts', methods: ['GET'])]
+    public function homeTexts(): JsonResponse
+    {
+        return $this->json(['items' => $this->db->fetchAllAssociative('SELECT * FROM home_texts ORDER BY position')]);
+    }
+
+    #[Route('/home-texts', methods: ['POST'])]
+    public function createHomeText(Request $request): JsonResponse
+    {
+        $data = $this->payload($request);
+        $this->db->insert('home_texts', [
+            'title' => $data['title'] ?? '',
+            'content' => $data['content'] ?? '',
+            'position' => (int) ($data['position'] ?? 0),
+            'active' => (int) ($data['active'] ?? true),
+        ]);
+        return $this->json(['id' => $this->db->lastInsertId()], 201);
+    }
+
+    #[Route('/home-texts/{id}', methods: ['PATCH'])]
+    public function updateHomeText(int $id, Request $request): JsonResponse
+    {
+        $fields = $this->map($this->payload($request), ['title' => 'title', 'content' => 'content', 'position' => 'position', 'active' => 'active']);
+        if ($fields) {
+            $this->db->update('home_texts', $fields, ['id' => $id]);
+        }
+        return $this->json(['status' => 'updated']);
+    }
+
+    #[Route('/home-texts/{id}', methods: ['DELETE'])]
+    public function deleteHomeText(int $id): JsonResponse
+    {
+        $this->db->delete('home_texts', ['id' => $id]);
+        return $this->json(['status' => 'deleted']);
+    }
+
+    // --- Réponses du chatbot (page de contact) ---
+
+    #[Route('/chatbot', methods: ['GET'])]
+    public function chatbotResponses(): JsonResponse
+    {
+        return $this->json(['items' => $this->db->fetchAllAssociative('SELECT * FROM chatbot_responses ORDER BY position')]);
+    }
+
+    #[Route('/chatbot', methods: ['POST'])]
+    public function createChatbotResponse(Request $request): JsonResponse
+    {
+        $data = $this->payload($request);
+        $this->db->insert('chatbot_responses', [
+            'keywords' => $data['keywords'] ?? '',
+            'answer' => $data['answer'] ?? '',
+            'position' => (int) ($data['position'] ?? 0),
+            'active' => (int) ($data['active'] ?? true),
+        ]);
+        return $this->json(['id' => $this->db->lastInsertId()], 201);
+    }
+
+    #[Route('/chatbot/{id}', methods: ['PATCH'])]
+    public function updateChatbotResponse(int $id, Request $request): JsonResponse
+    {
+        $fields = $this->map($this->payload($request), ['keywords' => 'keywords', 'answer' => 'answer', 'position' => 'position', 'active' => 'active']);
+        if ($fields) {
+            $this->db->update('chatbot_responses', $fields, ['id' => $id]);
+        }
+        return $this->json(['status' => 'updated']);
+    }
+
+    #[Route('/chatbot/{id}', methods: ['DELETE'])]
+    public function deleteChatbotResponse(int $id): JsonResponse
+    {
+        $this->db->delete('chatbot_responses', ['id' => $id]);
         return $this->json(['status' => 'deleted']);
     }
 

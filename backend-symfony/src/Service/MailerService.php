@@ -42,7 +42,15 @@ class MailerService
      */
     public function send(string $toEmail, string $subject, string $body): bool
     {
-        $socket = @stream_socket_client("tcp://{$this->host}:{$this->port}", $errno, $errstr, 10);
+        // Les adresses de démo internes (ex. admin@cyna.local) n'existent pas réellement :
+        // un SMTP réel (Gmail) ne pourrait pas les livrer. Elles restent donc routées vers
+        // Mailpit (http://localhost:8025) même quand un SMTP réel est configuré pour le reste.
+        [$host, $port, $username, $password, $encryption, $fromEmail] =
+            preg_match('/@[^@]*\.local$/i', $toEmail)
+                ? ['mailpit', 1025, '', '', 'none', 'no-reply@cyna.local']
+                : [$this->host, $this->port, $this->username, $this->password, $this->encryption, $this->fromEmail];
+
+        $socket = @stream_socket_client("tcp://{$host}:{$port}", $errno, $errstr, 10);
         if (!$socket) {
             return false;
         }
@@ -52,7 +60,7 @@ class MailerService
             $this->expect($socket, 220);
             $this->command($socket, 'EHLO cyna.local', 250);
 
-            if ($this->encryption === 'starttls') {
+            if ($encryption === 'starttls') {
                 $this->command($socket, 'STARTTLS', 220);
                 if (!stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
                     throw new \RuntimeException('Échec de la négociation TLS.');
@@ -61,18 +69,18 @@ class MailerService
                 $this->command($socket, 'EHLO cyna.local', 250);
             }
 
-            if ($this->username !== '') {
+            if ($username !== '') {
                 $this->command($socket, 'AUTH LOGIN', 334);
-                $this->command($socket, base64_encode($this->username), 334);
-                $this->command($socket, base64_encode($this->password), 235);
+                $this->command($socket, base64_encode($username), 334);
+                $this->command($socket, base64_encode($password), 235);
             }
 
-            $this->command($socket, 'MAIL FROM:<'.$this->fromEmail.'>', 250);
+            $this->command($socket, 'MAIL FROM:<'.$fromEmail.'>', 250);
             $this->command($socket, 'RCPT TO:<'.$toEmail.'>', 250);
             $this->command($socket, 'DATA', 354);
 
             $headers = [
-                'From: '.$this->encodeHeader($this->fromName).' <'.$this->fromEmail.'>',
+                'From: '.$this->encodeHeader($this->fromName).' <'.$fromEmail.'>',
                 'To: <'.$toEmail.'>',
                 'Subject: '.$this->encodeHeader($subject),
                 'MIME-Version: 1.0',

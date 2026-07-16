@@ -49,6 +49,20 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(options: ['default' => 0])]
     private int $twoFactorAttempts = 0;
 
+    /**
+     * Code de réinitialisation de mot de passe, haché (SHA-256).
+     * Champs séparés de ceux de la 2FA : un code de réinitialisation ne doit
+     * JAMAIS être accepté par /auth/verify-2fa (il donnerait un JWT sans mot de passe).
+     */
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $resetCode = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $resetExpiresAt = null;
+
+    #[ORM\Column(options: ['default' => 0])]
+    private int $resetAttempts = 0;
+
     /** Nouvelle adresse en attente de confirmation (changement d'e-mail). */
     #[ORM\Column(length: 180, nullable: true)]
     private ?string $pendingEmail = null;
@@ -199,6 +213,39 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setTwoFactorAttempts(int $attempts): self
     {
         $this->twoFactorAttempts = $attempts;
+        return $this;
+    }
+
+    public function getResetCode(): ?string
+    {
+        return $this->resetCode;
+    }
+
+    public function setResetCode(?string $hashedCode): self
+    {
+        $this->resetCode = $hashedCode;
+        return $this;
+    }
+
+    public function getResetExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->resetExpiresAt;
+    }
+
+    public function setResetExpiresAt(?\DateTimeImmutable $expiresAt): self
+    {
+        $this->resetExpiresAt = $expiresAt;
+        return $this;
+    }
+
+    public function getResetAttempts(): int
+    {
+        return $this->resetAttempts;
+    }
+
+    public function setResetAttempts(int $attempts): self
+    {
+        $this->resetAttempts = $attempts;
         return $this;
     }
 

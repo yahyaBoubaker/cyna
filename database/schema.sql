@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS users (
   two_factor_code VARCHAR(64) NULL,
   two_factor_expires_at DATETIME NULL,
   two_factor_attempts INT NOT NULL DEFAULT 0,
+  reset_code VARCHAR(64) NULL,
+  reset_expires_at DATETIME NULL,
+  reset_attempts INT NOT NULL DEFAULT 0,
   pending_email VARCHAR(180) NULL,
   email_change_token VARCHAR(64) NULL,
   email_change_expires_at DATETIME NULL,
@@ -22,6 +25,7 @@ CREATE TABLE IF NOT EXISTS categories (
   name VARCHAR(120) NOT NULL,
   slug VARCHAR(140) NOT NULL UNIQUE,
   description TEXT NULL,
+  image_url VARCHAR(500) NULL,
   active TINYINT(1) NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -31,10 +35,14 @@ CREATE TABLE IF NOT EXISTS products (
   name VARCHAR(160) NOT NULL,
   slug VARCHAR(180) NOT NULL UNIQUE,
   description TEXT NOT NULL,
+  technical_specs TEXT NULL,
   monthly_price DECIMAL(10,2) NOT NULL,
+  stock INT NOT NULL DEFAULT 25,
   active TINYINT(1) NOT NULL DEFAULT 1,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_products_category FOREIGN KEY (category_id) REFERENCES categories(id)
+  CONSTRAINT fk_products_category FOREIGN KEY (category_id) REFERENCES categories(id),
+  INDEX idx_products_name (name),
+  INDEX idx_products_price (monthly_price)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS product_images (
@@ -100,9 +108,14 @@ CREATE TABLE IF NOT EXISTS addresses (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
   company VARCHAR(180) NOT NULL,
+  first_name VARCHAR(120) NULL,
+  last_name VARCHAR(120) NULL,
   line1 VARCHAR(255) NOT NULL,
+  line2 VARCHAR(255) NULL,
   city VARCHAR(120) NOT NULL,
+  region VARCHAR(120) NULL,
   postal_code VARCHAR(20) NOT NULL,
+  phone VARCHAR(30) NULL,
   country VARCHAR(80) NOT NULL DEFAULT 'France',
   CONSTRAINT fk_addresses_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -152,4 +165,20 @@ CREATE TABLE IF NOT EXISTS featured_products (
   product_id INT NOT NULL,
   position INT NOT NULL DEFAULT 0,
   CONSTRAINT fk_featured_products_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS home_texts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(180) NOT NULL,
+  content TEXT NOT NULL,
+  position INT NOT NULL DEFAULT 0,
+  active TINYINT(1) NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS chatbot_responses (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  keywords VARCHAR(255) NOT NULL,
+  answer TEXT NOT NULL,
+  position INT NOT NULL DEFAULT 0,
+  active TINYINT(1) NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

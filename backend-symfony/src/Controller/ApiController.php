@@ -29,9 +29,18 @@ class ApiController extends AbstractController
             $where[] = 'c.slug = :category';
             $params['category'] = $category;
         }
+        // Tri du catalogue (cahier des charges : tri par prix, stock, nouveauté).
+        // Liste blanche : jamais de valeur utilisateur directement dans un ORDER BY.
+        $orderBy = match ($request->query->get('sort')) {
+            'price_asc' => 'p.monthly_price ASC',
+            'price_desc' => 'p.monthly_price DESC',
+            'stock' => 'p.stock DESC',
+            'name' => 'p.name ASC',
+            default => 'p.created_at DESC', // nouveauté
+        };
         $sql = 'SELECT p.*, c.name category_name, c.slug category_slug,
                 (SELECT url FROM product_images pi WHERE pi.product_id = p.id ORDER BY position LIMIT 1) image_url
-                FROM products p JOIN categories c ON c.id = p.category_id WHERE '.implode(' AND ', $where).' ORDER BY p.created_at DESC';
+                FROM products p JOIN categories c ON c.id = p.category_id WHERE '.implode(' AND ', $where).' ORDER BY '.$orderBy;
         return $this->json(['items' => $this->db->fetchAllAssociative($sql, $params)]);
     }
 
@@ -43,6 +52,14 @@ class ApiController extends AbstractController
             return $this->json(['error' => 'not_found'], 404);
         }
         $product['images'] = $this->db->fetchAllAssociative('SELECT * FROM product_images WHERE product_id = ? ORDER BY position', [$id]);
+        // Suggestions de services similaires : même catégorie, produit courant exclu.
+        $product['similar'] = $this->db->fetchAllAssociative(
+            'SELECT p.*, c.name category_name,
+             (SELECT url FROM product_images pi WHERE pi.product_id = p.id ORDER BY position LIMIT 1) image_url
+             FROM products p JOIN categories c ON c.id = p.category_id
+             WHERE p.active = 1 AND p.category_id = ? AND p.id != ? ORDER BY p.created_at DESC LIMIT 4',
+            [$product['category_id'], $id]
+        );
         return $this->json($product);
     }
 
@@ -58,11 +75,64 @@ class ApiController extends AbstractController
         return $this->json(['items' => $this->db->fetchAllAssociative('SELECT * FROM products WHERE active = 1 AND category_id = ? ORDER BY name', [$id])]);
     }
 
+    /**
+     * Recherche avancée (cahier des charges) : texte (nom, description, caractéristiques
+     * techniques), mode de correspondance, filtres prix / disponibilité, tri des résultats.
+     */
     #[Route('/search', methods: ['GET'])]
     public function search(Request $request): JsonResponse
     {
-        $q = '%'.trim($request->query->get('q', '')).'%';
-        return $this->json(['items' => $this->db->fetchAllAssociative('SELECT * FROM products WHERE active = 1 AND (name LIKE ? OR description LIKE ?) ORDER BY name', [$q, $q])]);
+        $q = trim($request->query->get('q', ''));
+        $params = [];
+        $where = ['p.active = 1'];
+
+        if ($q !== '') {
+            // Modes : contient (défaut), commence par, correspondance exacte.
+            $pattern = match ($request->query->get('mode')) {
+                'exact' => $q,
+                'starts' => $q.'%',
+                default => '%'.$q.'%',
+            };
+            $where[] = '(p.name LIKE :q OR p.description LIKE :q OR p.technical_specs LIKE :q)';
+            $params['q'] = $pattern;
+        }
+        if (($min = $request->query->get('minPrice')) !== null && $min !== '') {
+            $where[] = 'p.monthly_price >= :min';
+            $params['min'] = (float) $min;
+        }
+        if (($max = $request->query->get('maxPrice')) !== null && $max !== '') {
+            $where[] = 'p.monthly_price <= :max';
+            $params['max'] = (float) $max;
+        }
+        if ($request->query->get('inStock') === '1') {
+            $where[] = 'p.stock > 0';
+        }
+
+        // Liste blanche pour le tri : jamais de valeur utilisateur dans un ORDER BY.
+        $orderBy = match ($request->query->get('sort')) {
+            'price_asc' => 'p.monthly_price ASC',
+            'price_desc' => 'p.monthly_price DESC',
+            'newest' => 'p.created_at DESC',
+            default => 'p.name ASC',
+        };
+
+        $sql = 'SELECT p.*, c.name category_name,
+                (SELECT url FROM product_images pi WHERE pi.product_id = p.id ORDER BY position LIMIT 1) image_url
+                FROM products p JOIN categories c ON c.id = p.category_id
+                WHERE '.implode(' AND ', $where).' ORDER BY '.$orderBy.' LIMIT 100';
+        return $this->json(['items' => $this->db->fetchAllAssociative($sql, $params)]);
+    }
+
+    #[Route('/home-texts', methods: ['GET'])]
+    public function homeTexts(): JsonResponse
+    {
+        return $this->json(['items' => $this->db->fetchAllAssociative('SELECT * FROM home_texts WHERE active = 1 ORDER BY position')]);
+    }
+
+    #[Route('/chatbot', methods: ['GET'])]
+    public function chatbot(): JsonResponse
+    {
+        return $this->json(['items' => $this->db->fetchAllAssociative('SELECT id, keywords, answer FROM chatbot_responses WHERE active = 1 ORDER BY position')]);
     }
 
     #[Route('/home-carousel', methods: ['GET'])]
@@ -137,7 +207,7 @@ class ApiController extends AbstractController
     }
 
     #[Route('/auth/verify', methods: ['GET'])]
-    public function verifyEmail(Request $request, EntityManagerInterface $em): JsonResponse
+    public function verifyEmail(Request $request, EntityManagerInterface $em, JwtTokenManager $tokens): JsonResponse
     {
         $token = (string) $request->query->get('token', '');
         $user = $token !== '' ? $em->getRepository(User::class)->findOneBy(['verificationToken' => $token]) : null;
@@ -154,8 +224,16 @@ class ApiController extends AbstractController
         $user->setVerificationToken(null);
         $user->setVerificationTokenExpiresAt(null);
         $em->flush();
+        $this->ensureCart($user->getId());
 
-        return $this->json(['status' => 'verified', 'message' => 'Adresse e-mail confirmée, vous pouvez vous connecter.']);
+        // Connexion automatique (cahier des charges) : cliquer le lien à usage unique reçu
+        // par e-mail prouve la possession de l'adresse — même garantie que le code 2FA.
+        return $this->json([
+            'status' => 'verified',
+            'message' => 'Adresse e-mail confirmée, vous êtes maintenant connecté.',
+            'token' => $tokens->create($user),
+            'user' => $this->userArray($user),
+        ]);
     }
 
     #[Route('/auth/resend-verification', methods: ['POST'])]
@@ -256,6 +334,89 @@ class ApiController extends AbstractController
 
         $this->ensureCart($user->getId());
         return $this->json(['token' => $tokens->create($user), 'user' => $this->userArray($user)]);
+    }
+
+    #[Route('/auth/forgot-password', methods: ['POST'])]
+    public function forgotPassword(Request $request, EntityManagerInterface $em, MailerService $mailer): JsonResponse
+    {
+        $email = strtolower(trim($this->payload($request)['email'] ?? ''));
+        $user = $email !== '' ? $em->getRepository(User::class)->findOneBy(['email' => $email]) : null;
+
+        // Toujours la même réponse, que le compte existe ou non :
+        // évite de laisser deviner si une adresse e-mail est enregistrée.
+        $generic = ['status' => 'sent', 'message' => "Si un compte existe pour cet e-mail, un code de réinitialisation vient d'être envoyé."];
+
+        if (!$user) {
+            return $this->json($generic);
+        }
+
+        $code = (string) random_int(100000, 999999);
+        $user->setResetCode(hash('sha256', $code)); // jamais stocké en clair
+        $user->setResetExpiresAt(new \DateTimeImmutable('+15 minutes'));
+        $user->setResetAttempts(0);
+        $em->flush();
+
+        $mailer->send(
+            $user->getEmail(),
+            'Réinitialisation de votre mot de passe CYNA',
+            "Bonjour {$user->getFirstName()},\n\n"
+            ."Votre code de réinitialisation est : {$code}\n\n"
+            ."Il expire dans 15 minutes. Si vous n'avez pas demandé cette réinitialisation, "
+            ."ignorez ce message : votre mot de passe reste inchangé.\n\nL'équipe CYNA"
+        );
+
+        return $this->json($generic);
+    }
+
+    #[Route('/auth/reset-password', methods: ['POST'])]
+    public function resetPassword(Request $request, EntityManagerInterface $em, UserPasswordHasherInterface $hasher): JsonResponse
+    {
+        $data = $this->payload($request);
+        $code = trim((string) ($data['code'] ?? ''));
+        $user = $em->getRepository(User::class)->findOneBy(['email' => strtolower(trim($data['email'] ?? ''))]);
+
+        $invalid = $this->json(['error' => 'invalid_code', 'message' => 'Code invalide ou expiré. Refaites une demande de réinitialisation.'], 401);
+
+        if (!$user || $user->getResetCode() === null) {
+            return $invalid;
+        }
+        if ($user->getResetExpiresAt() === null || $user->getResetExpiresAt() < new \DateTimeImmutable()) {
+            return $invalid;
+        }
+        if ($user->getResetAttempts() >= 5) {
+            $user->setResetCode(null);
+            $user->setResetExpiresAt(null);
+            $em->flush();
+            return $this->json(['error' => 'too_many_attempts', 'message' => 'Trop de tentatives. Refaites une demande de réinitialisation.'], 429);
+        }
+        if (!preg_match('/^[0-9]{6}$/', $code) || !hash_equals($user->getResetCode(), hash('sha256', $code))) {
+            $user->setResetAttempts($user->getResetAttempts() + 1);
+            $em->flush();
+            return $invalid;
+        }
+
+        $newPassword = (string) ($data['newPassword'] ?? '');
+        if ($passwordError = $this->validatePassword($newPassword)) {
+            // Le code reste valable : l'utilisateur corrige juste son mot de passe.
+            return $this->json(['error' => 'validation', 'errors' => ['newPassword' => $passwordError]], 422);
+        }
+
+        $user->setPassword($hasher->hashPassword($user, $newPassword));
+        $user->setResetCode(null);
+        $user->setResetExpiresAt(null);
+        $user->setResetAttempts(0);
+        // Réussir la réinitialisation prouve la possession de l'adresse e-mail :
+        // on en profite pour marquer le compte vérifié s'il ne l'était pas encore.
+        $user->setVerified(true);
+        $user->setVerificationToken(null);
+        $user->setVerificationTokenExpiresAt(null);
+        // Un éventuel code 2FA en cours est annulé (nouveau départ propre).
+        $user->setTwoFactorCode(null);
+        $user->setTwoFactorExpiresAt(null);
+        $user->setTwoFactorAttempts(0);
+        $em->flush();
+
+        return $this->json(['status' => 'password_reset', 'message' => 'Mot de passe réinitialisé, vous pouvez vous connecter.']);
     }
 
     #[Route('/contact', methods: ['POST'])]
@@ -403,7 +564,15 @@ class ApiController extends AbstractController
     #[Route('/me/orders', methods: ['GET'])]
     public function myOrders(): JsonResponse
     {
-        return $this->json(['items' => $this->db->fetchAllAssociative('SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC', [$this->userId()])]);
+        // Nom du 1er service, nombre d'articles et durée max : affichés dans l'historique.
+        return $this->json(['items' => $this->db->fetchAllAssociative(
+            'SELECT o.*,
+             (SELECT oi.product_name FROM order_items oi WHERE oi.order_id = o.id LIMIT 1) first_item,
+             (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) items_count,
+             (SELECT MAX(oi.duration_months) FROM order_items oi WHERE oi.order_id = o.id) duration_months
+             FROM orders o WHERE o.user_id = ? ORDER BY o.created_at DESC',
+            [$this->userId()]
+        )]);
     }
 
     #[Route('/me/orders/{id}', methods: ['GET'])]
@@ -451,14 +620,7 @@ class ApiController extends AbstractController
             return $this->json(['error' => 'validation', 'errors' => $errors], 422);
         }
 
-        $row = [
-            'user_id' => $this->userId(),
-            'company' => trim($data['company'] ?? ''),
-            'line1' => $line1,
-            'city' => $city,
-            'postal_code' => $postalCode,
-            'country' => trim($data['country'] ?? '') ?: 'France',
-        ];
+        $row = $this->addressRow($data, $line1, $city, $postalCode);
         $existingId = $this->db->fetchOne('SELECT id FROM addresses WHERE user_id = ? ORDER BY id DESC LIMIT 1', [$this->userId()]);
         if ($existingId) {
             $this->db->update('addresses', $row, ['id' => $existingId]);
@@ -466,6 +628,42 @@ class ApiController extends AbstractController
             $this->db->insert('addresses', $row);
         }
         return $this->json(['address' => $this->db->fetchAssociative('SELECT * FROM addresses WHERE user_id = ? ORDER BY id DESC LIMIT 1', [$this->userId()])]);
+    }
+
+    /**
+     * Ligne d'adresse complète (cahier des charges : nom, prénom, 2 lignes, ville,
+     * région, code postal, pays, téléphone). Partagée entre profil et checkout.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, string|int>
+     */
+    private function addressRow(array $data, string $line1, string $city, string $postalCode): array
+    {
+        return [
+            'user_id' => $this->userId(),
+            'company' => trim($data['company'] ?? ''),
+            'first_name' => trim($data['firstName'] ?? ''),
+            'last_name' => trim($data['lastName'] ?? ''),
+            'line1' => $line1,
+            'line2' => trim($data['line2'] ?? ''),
+            'city' => $city,
+            'region' => trim($data['region'] ?? ''),
+            'postal_code' => $postalCode,
+            'phone' => trim($data['phone'] ?? ''),
+            'country' => trim($data['country'] ?? '') ?: 'France',
+        ];
+    }
+
+    #[Route('/me/payments', methods: ['GET'])]
+    public function myPayments(): JsonResponse
+    {
+        // Uniquement nom du porteur + 4 derniers chiffres (jamais le numéro complet, non stocké).
+        return $this->json(['items' => $this->db->fetchAllAssociative(
+            'SELECT pa.id, pa.order_id, pa.status, pa.amount, pa.card_name, pa.card_last4, pa.created_at
+             FROM payments pa JOIN orders o ON o.id = pa.order_id
+             WHERE o.user_id = ? ORDER BY pa.created_at DESC',
+            [$this->userId()]
+        )]);
     }
 
     #[Route('/me/orders/{id}/invoice', methods: ['GET'])]
@@ -554,14 +752,12 @@ class ApiController extends AbstractController
         // seuls le nom du porteur et les 4 derniers chiffres sont conservés (cf. cahier des charges).
 
         if (!empty($data['address']['line1']) && !empty($data['address']['city']) && !empty($data['address']['postalCode'])) {
-            $addressRow = [
-                'user_id' => $this->userId(),
-                'company' => trim($data['address']['company'] ?? ''),
-                'line1' => trim($data['address']['line1']),
-                'city' => trim($data['address']['city']),
-                'postal_code' => trim($data['address']['postalCode']),
-                'country' => trim($data['address']['country'] ?? '') ?: 'France',
-            ];
+            $addressRow = $this->addressRow(
+                $data['address'],
+                trim($data['address']['line1']),
+                trim($data['address']['city']),
+                trim($data['address']['postalCode'])
+            );
             $existingId = $this->db->fetchOne('SELECT id FROM addresses WHERE user_id = ? ORDER BY id DESC LIMIT 1', [$this->userId()]);
             if ($existingId) {
                 $this->db->update('addresses', $addressRow, ['id' => $existingId]);
