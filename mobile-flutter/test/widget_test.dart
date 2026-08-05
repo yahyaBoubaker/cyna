@@ -1,30 +1,45 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:cyna_mobile/main.dart';
+import 'package:cyna_mobile/widgets/state_widgets.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('EmptyState affiche son contenu', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: EmptyState(
+            icon: Icons.receipt_long_outlined,
+            title: 'Aucune commande',
+            text: 'Les commandes apparaitront ici.',
+          ),
+        ),
+      ),
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(find.byIcon(Icons.receipt_long_outlined), findsOneWidget);
+    expect(find.text('Aucune commande'), findsOneWidget);
+    expect(find.text('Les commandes apparaitront ici.'), findsOneWidget);
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  testWidgets('ErrorState permet de relancer le chargement', (tester) async {
+    var retries = 0;
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ErrorState(
+            message: 'Le catalogue est indisponible.',
+            onRetry: () => retries++,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Connexion impossible'), findsOneWidget);
+    expect(find.text('Le catalogue est indisponible.'), findsOneWidget);
+
+    await tester.tap(find.text('Reessayer'));
+    expect(retries, 1);
   });
 }
