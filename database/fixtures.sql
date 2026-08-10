@@ -2,10 +2,10 @@ INSERT IGNORE INTO users (id, email, first_name, last_name, roles, password, ver
 (1, 'admin@cyna.local', 'Admin', 'CYNA', JSON_ARRAY('ROLE_ADMIN','ROLE_USER'), '$2y$10$g6D8EeNDmVZ9YN/EX/e9QebynZUo9G2i3TgjW2HaqfjPkcVYEN8bu', 1, NOW()),
 (2, 'user@cyna.local', 'Camille', 'Martin', JSON_ARRAY('ROLE_USER'), '$2y$10$GpZT6OK2jiZvwm9ekIq.5OBzLmqcOBsrF2ybFTTb8ilvFrUiFqo86', 1, NOW());
 
-INSERT IGNORE INTO categories (id, name, slug, description, active) VALUES
-(1, 'SOC', 'soc', 'Supervision de securite 24/7 et detection des incidents.', 1),
-(2, 'EDR', 'edr', 'Protection des postes et serveurs avec reponse automatisee.', 1),
-(3, 'XDR', 'xdr', 'Correlation avancee des signaux de securite sur tout le SI.', 1);
+INSERT IGNORE INTO categories (id, name, slug, description, image_url, active) VALUES
+(1, 'SOC', 'soc', 'Supervision de securite 24/7 et detection des incidents.', 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=900&q=80', 1),
+(2, 'EDR', 'edr', 'Protection des postes et serveurs avec reponse automatisee.', 'https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=900&q=80', 1),
+(3, 'XDR', 'xdr', 'Correlation avancee des signaux de securite sur tout le SI.', 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=900&q=80', 1);
 
 INSERT IGNORE INTO products (id, category_id, name, slug, description, monthly_price, active, created_at) VALUES
 (1, 1, 'Cyna SOC', 'cyna-soc', 'Service SOC managé avec supervision, alerting, rapports mensuels et accompagnement analyste.', 499.00, 1, NOW()),

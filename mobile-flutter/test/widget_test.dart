@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:cyna_mobile/widgets/state_widgets.dart';
+import 'package:cyna_mobile/widgets/public_info_drawer.dart';
 
 void main() {
   testWidgets('EmptyState affiche son contenu', (tester) async {
@@ -41,5 +42,19 @@ void main() {
 
     await tester.tap(find.text('Reessayer'));
     expect(retries, 1);
+  });
+
+  testWidgets('le menu public expose les informations sans connexion',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: PublicInfoDrawer()),
+      ),
+    );
+
+    expect(find.text('Contacter le support'), findsOneWidget);
+    expect(find.text('Mentions legales'), findsOneWidget);
+    expect(find.text('CGU'), findsOneWidget);
+    expect(find.text('Instagram : @h3hitema'), findsOneWidget);
   });
 }

@@ -7,6 +7,7 @@ import 'screens/home_screen.dart';
 import 'screens/orders_screen.dart';
 import 'screens/product_detail_screen.dart';
 import 'services/api_service.dart';
+import 'widgets/public_info_drawer.dart';
 import 'widgets/state_widgets.dart';
 
 void main() => runApp(const CynaApp());
@@ -145,7 +146,9 @@ class _CynaShellState extends State<CynaShell> {
     }
 
     final pages = [
-      HomeScreen(onOpenProduct: openProduct, onSeeCatalog: () => setState(() => index = 1)),
+      HomeScreen(
+          onOpenProduct: openProduct,
+          onSeeCatalog: () => setState(() => index = 1)),
       CatalogScreen(onOpenProduct: openProduct),
       CartScreen(
         cart: cart,
@@ -165,6 +168,7 @@ class _CynaShellState extends State<CynaShell> {
     ];
 
     return Scaffold(
+      drawer: const PublicInfoDrawer(),
       appBar: AppBar(
         title: const Row(
           children: [
@@ -193,11 +197,26 @@ class _CynaShellState extends State<CynaShell> {
         selectedIndex: index,
         onDestinationSelected: (value) => setState(() => index = value),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Accueil'),
-          NavigationDestination(icon: Icon(Icons.storefront_outlined), selectedIcon: Icon(Icons.storefront), label: 'Catalogue'),
-          NavigationDestination(icon: Icon(Icons.shopping_cart_outlined), selectedIcon: Icon(Icons.shopping_cart), label: 'Panier'),
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Compte'),
-          NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: 'Commandes'),
+          NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'Accueil'),
+          NavigationDestination(
+              icon: Icon(Icons.storefront_outlined),
+              selectedIcon: Icon(Icons.storefront),
+              label: 'Catalogue'),
+          NavigationDestination(
+              icon: Icon(Icons.shopping_cart_outlined),
+              selectedIcon: Icon(Icons.shopping_cart),
+              label: 'Panier'),
+          NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'Compte'),
+          NavigationDestination(
+              icon: Icon(Icons.receipt_long_outlined),
+              selectedIcon: Icon(Icons.receipt_long),
+              label: 'Commandes'),
         ],
       ),
     );

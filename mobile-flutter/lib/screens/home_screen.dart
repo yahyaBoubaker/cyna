@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
@@ -8,7 +10,8 @@ class HomeScreen extends StatefulWidget {
   final void Function(int id) onOpenProduct;
   final VoidCallback onSeeCatalog;
 
-  const HomeScreen({super.key, required this.onOpenProduct, required this.onSeeCatalog});
+  const HomeScreen(
+      {super.key, required this.onOpenProduct, required this.onSeeCatalog});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -78,7 +81,8 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           if (errorMessage != null)
             ErrorState(message: errorMessage!, onRetry: load, compact: true),
-          if (slides.isNotEmpty) HomeCarousel(slides: slides, onCta: widget.onSeeCatalog),
+          if (slides.isNotEmpty)
+            HomeCarousel(slides: slides, onCta: widget.onSeeCatalog),
           const SizedBox(height: 16),
           ...texts.map((t) => Card(
                 child: Padding(
@@ -86,7 +90,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('${t['title']}', style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xff18a4bc))),
+                      Text('${t['title']}',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xff18a4bc))),
                       const SizedBox(height: 6),
                       Text('${t['content']}'),
                     ],
@@ -101,14 +108,17 @@ class _HomeScreenState extends State<HomeScreen> {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: categories
-                  .map((c) => CategoryTile(category: c, onTap: widget.onSeeCatalog))
+                  .map((c) =>
+                      CategoryTile(category: c, onTap: widget.onSeeCatalog))
                   .toList(),
             ),
           ),
           const SizedBox(height: 16),
-          Text('Top produits du moment', style: Theme.of(context).textTheme.titleLarge),
+          Text('Top produits du moment',
+              style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
-          ...featured.map((p) => ProductCard(product: p, onOpen: widget.onOpenProduct)),
+          ...featured.map(
+              (p) => ProductCard(product: p, onOpen: widget.onOpenProduct)),
         ],
       ),
     );
@@ -127,10 +137,41 @@ class HomeCarousel extends StatefulWidget {
 
 class _HomeCarouselState extends State<HomeCarousel> {
   final controller = PageController();
+  Timer? timer;
   int page = 0;
 
   @override
+  void initState() {
+    super.initState();
+    startAutoPlay();
+  }
+
+  void startAutoPlay() {
+    timer?.cancel();
+    if (widget.slides.length < 2) return;
+    timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted || !controller.hasClients) return;
+      final nextPage = (page + 1) % widget.slides.length;
+      controller.animateToPage(
+        nextPage,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant HomeCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.slides.length != widget.slides.length) {
+      page = 0;
+      startAutoPlay();
+    }
+  }
+
+  @override
   void dispose() {
+    timer?.cancel();
     controller.dispose();
     super.dispose();
   }
@@ -164,11 +205,17 @@ class _HomeCarouselState extends State<HomeCarousel> {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     Text('${s['title']}',
-                        style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800)),
                     const SizedBox(height: 4),
-                    Text('${s['subtitle'] ?? ''}', style: const TextStyle(color: Colors.white)),
+                    Text('${s['subtitle'] ?? ''}',
+                        style: const TextStyle(color: Colors.white)),
                     const SizedBox(height: 8),
-                    FilledButton(onPressed: widget.onCta, child: const Text('Voir les services')),
+                    FilledButton(
+                        onPressed: widget.onCta,
+                        child: const Text('Voir les services')),
                   ],
                 ),
               );
@@ -227,7 +274,8 @@ class CategoryTile extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         alignment: Alignment.bottomLeft,
         child: Text('${category['name']}',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w800)),
       ),
     );
   }
