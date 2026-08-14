@@ -12,9 +12,14 @@ String orderStatusLabel(dynamic value) => switch ('$value') {
     };
 
 class OrdersScreen extends StatefulWidget {
-  const OrdersScreen({super.key, required this.isLoggedIn});
+  const OrdersScreen({
+    super.key,
+    required this.isLoggedIn,
+    required this.refreshVersion,
+  });
 
   final bool isLoggedIn;
+  final int refreshVersion;
 
   @override
   State<OrdersScreen> createState() => _OrdersScreenState();
@@ -26,7 +31,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
   @override
   void didUpdateWidget(covariant OrdersScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.isLoggedIn != widget.isLoggedIn) {
+    if (oldWidget.isLoggedIn != widget.isLoggedIn ||
+        oldWidget.refreshVersion != widget.refreshVersion) {
       orders = null;
     }
   }

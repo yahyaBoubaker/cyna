@@ -49,6 +49,7 @@ class _CynaShellState extends State<CynaShell> {
   final cart = <CartLine>[];
   bool sessionLoading = true;
   String? sessionError;
+  int ordersRefreshVersion = 0;
 
   @override
   void initState() {
@@ -164,7 +165,10 @@ class _CynaShellState extends State<CynaShell> {
           if (mounted) setState(() => user = null);
         },
       ),
-      OrdersScreen(isLoggedIn: user != null),
+      OrdersScreen(
+        isLoggedIn: user != null,
+        refreshVersion: ordersRefreshVersion,
+      ),
     ];
 
     return Scaffold(
@@ -195,7 +199,10 @@ class _CynaShellState extends State<CynaShell> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
-        onDestinationSelected: (value) => setState(() => index = value),
+        onDestinationSelected: (value) => setState(() {
+          index = value;
+          if (value == 4) ordersRefreshVersion++;
+        }),
         destinations: const [
           NavigationDestination(
               icon: Icon(Icons.home_outlined),

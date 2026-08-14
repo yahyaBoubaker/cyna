@@ -48,7 +48,7 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_started
-    command: sh -lc "composer install --no-interaction --optimize-autoloader && php bin/console doctrine:migrations:migrate --no-interaction || true && php bin/console doctrine:fixtures:load --no-interaction || true && symfony server:start --no-tls --allow-http --listen-ip=0.0.0.0 --port=8000"
+    command: sh -lc "composer install --no-interaction --optimize-autoloader && php bin/console doctrine:migrations:migrate --no-interaction || true && symfony server:start --no-tls --allow-http --listen-ip=0.0.0.0 --port=8000"
 
   mailpit:
     image: axllent/mailpit
