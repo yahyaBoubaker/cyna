@@ -88,13 +88,28 @@ class ApiController extends AbstractController
 
         if ($q !== '') {
             // Modes : contient (défaut), commence par, correspondance exacte.
-            $pattern = match ($request->query->get('mode')) {
+            $mode = $request->query->get('mode');
+            $pattern = match ($mode) {
                 'exact' => $q,
                 'starts' => $q.'%',
                 default => '%'.$q.'%',
             };
-            $where[] = '(p.name LIKE :q OR p.description LIKE :q OR p.technical_specs LIKE :q)';
-            $params['q'] = $pattern;
+            $field = match ($request->query->get('scope')) {
+                'name' => 'p.name',
+                'description' => 'p.description',
+                'specs' => 'p.technical_specs',
+                default => null,
+            };
+            if ($mode === 'fuzzy') {
+                // Filtrage Levenshtein applique apres la requete (ecart maximal d'un caractere).
+            } elseif ($field) {
+                $where[] = $field.' LIKE :q';
+            } else {
+                $where[] = '(p.name LIKE :q OR p.description LIKE :q OR p.technical_specs LIKE :q)';
+            }
+            if ($mode !== 'fuzzy') {
+                $params['q'] = $pattern;
+            }
         }
         if (($min = $request->query->get('minPrice')) !== null && $min !== '') {
             $where[] = 'p.monthly_price >= :min';
@@ -106,6 +121,10 @@ class ApiController extends AbstractController
         }
         if ($request->query->get('inStock') === '1') {
             $where[] = 'p.stock > 0';
+        }
+        if (($category = trim($request->query->get('category', ''))) !== '') {
+            $where[] = 'c.slug = :category';
+            $params['category'] = $category;
         }
 
         // Liste blanche pour le tri : jamais de valeur utilisateur dans un ORDER BY.
@@ -120,7 +139,29 @@ class ApiController extends AbstractController
                 (SELECT url FROM product_images pi WHERE pi.product_id = p.id ORDER BY position LIMIT 1) image_url
                 FROM products p JOIN categories c ON c.id = p.category_id
                 WHERE '.implode(' AND ', $where).' ORDER BY '.$orderBy.' LIMIT 100';
-        return $this->json(['items' => $this->db->fetchAllAssociative($sql, $params)]);
+        $items = $this->db->fetchAllAssociative($sql, $params);
+        if ($q !== '' && ($request->query->get('mode') === 'fuzzy')) {
+            $scope = $request->query->get('scope', 'all');
+            $needle = strtolower($q);
+            $items = array_values(array_filter($items, static function (array $item) use ($scope, $needle): bool {
+                $texts = match ($scope) {
+                    'name' => [$item['name'] ?? ''],
+                    'description' => [$item['description'] ?? ''],
+                    'specs' => [$item['technical_specs'] ?? ''],
+                    default => [$item['name'] ?? '', $item['description'] ?? '', $item['technical_specs'] ?? ''],
+                };
+                foreach ($texts as $text) {
+                    $words = preg_split('/[^a-z0-9]+/i', strtolower((string) $text), -1, PREG_SPLIT_NO_EMPTY);
+                    foreach ($words ?: [] as $word) {
+                        if (levenshtein($needle, $word) <= 1) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }));
+        }
+        return $this->json(['items' => $items]);
     }
 
     #[Route('/home-texts', methods: ['GET'])]
@@ -592,6 +633,36 @@ class ApiController extends AbstractController
         return $this->json(['items' => $this->db->fetchAllAssociative('SELECT s.*, p.name product_name FROM subscriptions s JOIN products p ON p.id = s.product_id WHERE s.user_id = ? ORDER BY s.ends_at DESC', [$this->userId()])]);
     }
 
+    #[Route('/me/subscriptions/{id}', methods: ['PATCH'])]
+    public function updateSubscription(int $id, Request $request): JsonResponse
+    {
+        $subscription = $this->db->fetchAssociative(
+            'SELECT * FROM subscriptions WHERE id = ? AND user_id = ?',
+            [$id, $this->userId()]
+        );
+        if (!$subscription) {
+            return $this->json(['error' => 'not_found'], 404);
+        }
+
+        $action = $this->payload($request)['action'] ?? '';
+        if ($action === 'cancel') {
+            $this->db->update('subscriptions', ['status' => 'cancelled'], ['id' => $id]);
+        } elseif ($action === 'renew') {
+            $base = max(time(), strtotime($subscription['ends_at']));
+            $this->db->update('subscriptions', [
+                'status' => 'active',
+                'ends_at' => date('Y-m-d H:i:s', strtotime('+12 months', $base)),
+            ], ['id' => $id]);
+        } else {
+            return $this->json(['error' => 'validation', 'message' => 'Action invalide.'], 422);
+        }
+
+        return $this->json(['subscription' => $this->db->fetchAssociative(
+            'SELECT s.*, p.name product_name FROM subscriptions s JOIN products p ON p.id = s.product_id WHERE s.id = ?',
+            [$id]
+        )]);
+    }
+
     #[Route('/me/address', methods: ['GET'])]
     public function myAddress(): JsonResponse
     {
@@ -628,6 +699,56 @@ class ApiController extends AbstractController
             $this->db->insert('addresses', $row);
         }
         return $this->json(['address' => $this->db->fetchAssociative('SELECT * FROM addresses WHERE user_id = ? ORDER BY id DESC LIMIT 1', [$this->userId()])]);
+    }
+
+    #[Route('/me/addresses', methods: ['GET'])]
+    public function myAddresses(): JsonResponse
+    {
+        return $this->json(['items' => $this->db->fetchAllAssociative(
+            'SELECT * FROM addresses WHERE user_id = ? ORDER BY id DESC',
+            [$this->userId()]
+        )]);
+    }
+
+    #[Route('/me/addresses', methods: ['POST'])]
+    public function createMyAddress(Request $request): JsonResponse
+    {
+        $data = $this->payload($request);
+        $line1 = trim($data['line1'] ?? '');
+        $city = trim($data['city'] ?? '');
+        $postalCode = trim($data['postalCode'] ?? '');
+        if ($line1 === '' || $city === '' || $postalCode === '') {
+            return $this->json(['error' => 'validation', 'message' => 'Adresse, ville et code postal requis.'], 422);
+        }
+        $this->db->insert('addresses', $this->addressRow($data, $line1, $city, $postalCode));
+        return $this->json(['address' => $this->db->fetchAssociative(
+            'SELECT * FROM addresses WHERE id = ? AND user_id = ?',
+            [$this->db->lastInsertId(), $this->userId()]
+        )], 201);
+    }
+
+    #[Route('/me/addresses/{id}', methods: ['PUT'])]
+    public function updateMyAddress(int $id, Request $request): JsonResponse
+    {
+        if (!$this->db->fetchOne('SELECT id FROM addresses WHERE id = ? AND user_id = ?', [$id, $this->userId()])) {
+            return $this->json(['error' => 'not_found'], 404);
+        }
+        $data = $this->payload($request);
+        $line1 = trim($data['line1'] ?? '');
+        $city = trim($data['city'] ?? '');
+        $postalCode = trim($data['postalCode'] ?? '');
+        if ($line1 === '' || $city === '' || $postalCode === '') {
+            return $this->json(['error' => 'validation', 'message' => 'Adresse, ville et code postal requis.'], 422);
+        }
+        $this->db->update('addresses', $this->addressRow($data, $line1, $city, $postalCode), ['id' => $id]);
+        return $this->json(['address' => $this->db->fetchAssociative('SELECT * FROM addresses WHERE id = ?', [$id])]);
+    }
+
+    #[Route('/me/addresses/{id}', methods: ['DELETE'])]
+    public function deleteMyAddress(int $id): JsonResponse
+    {
+        $this->db->delete('addresses', ['id' => $id, 'user_id' => $this->userId()]);
+        return $this->json(['status' => 'deleted']);
     }
 
     /**
