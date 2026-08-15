@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
@@ -8,7 +10,8 @@ class ProductDetailScreen extends StatefulWidget {
   final int productId;
   final void Function(Map<String, dynamic> product, int durationMonths) onAdd;
 
-  const ProductDetailScreen({super.key, required this.productId, required this.onAdd});
+  const ProductDetailScreen(
+      {super.key, required this.productId, required this.onAdd});
 
   @override
   State<ProductDetailScreen> createState() => _ProductDetailScreenState();
@@ -18,28 +21,43 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   Map<String, dynamic>? product;
   String error = '';
   int duration = 12;
+  Timer? syncTimer;
 
   @override
   void initState() {
     super.initState();
     load();
+    syncTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => load(showLoading: false),
+    );
   }
 
-  Future<void> load() async {
-    setState(() {
-      product = null;
-      error = '';
-    });
+  @override
+  void dispose() {
+    syncTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> load({bool showLoading = true}) async {
+    if (showLoading) {
+      setState(() {
+        product = null;
+        error = '';
+      });
+    }
 
     try {
       final data = await api.get('/products/${widget.productId}');
       if (mounted) setState(() => product = data);
     } catch (_) {
       if (mounted) {
-        setState(() {
-          error =
-              'Impossible de charger ce produit. Verifiez votre connexion puis reessayez.';
-        });
+        if (showLoading || product == null) {
+          setState(() {
+            error =
+                'Impossible de charger ce produit. Verifiez votre connexion puis reessayez.';
+          });
+        }
       }
     }
   }
@@ -81,8 +99,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               children: images
                   .map((i) => ClipRRect(
                         borderRadius: BorderRadius.circular(10),
-                        child: Image.network('${i['url']}', fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+                        child: Image.network('${i['url']}',
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                const SizedBox.shrink()),
                       ))
                   .toList(),
             ),
@@ -91,7 +111,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         Row(
           children: [
             Text('${p['category_name'] ?? ''}',
-                style: const TextStyle(color: Color(0xff18a4bc), fontWeight: FontWeight.w800)),
+                style: const TextStyle(
+                    color: Color(0xff18a4bc), fontWeight: FontWeight.w800)),
             const Spacer(),
             StockChip(stock: p['stock']),
           ],
@@ -102,7 +123,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         Text('${p['description']}'),
         if (specs.isNotEmpty) ...[
           const SizedBox(height: 14),
-          Text('Caracteristiques techniques', style: Theme.of(context).textTheme.titleMedium),
+          Text('Caracteristiques techniques',
+              style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 6),
           ...specs.map((s) => Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -121,7 +143,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             ButtonSegment(value: 24, label: Text('24 mois')),
           ],
           selected: {duration},
-          onSelectionChanged: (values) => setState(() => duration = values.first),
+          onSelectionChanged: (values) =>
+              setState(() => duration = values.first),
         ),
         const SizedBox(height: 10),
         Text('Total : ${(price * duration).toStringAsFixed(2)} EUR',
@@ -139,15 +162,19 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         ),
         if (similar.isNotEmpty) ...[
           const SizedBox(height: 20),
-          Text('Services similaires', style: Theme.of(context).textTheme.titleMedium),
+          Text('Services similaires',
+              style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           ...similar.map((s) => Card(
                 child: ListTile(
                   title: Text('${s['name']}'),
                   subtitle: Text('${euros(s['monthly_price'])}/mois'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.of(context).pushReplacement(MaterialPageRoute(
-                    builder: (_) => ProductDetailScreen(productId: int.parse('${s['id']}'), onAdd: widget.onAdd),
+                  onTap: () =>
+                      Navigator.of(context).pushReplacement(MaterialPageRoute(
+                    builder: (_) => ProductDetailScreen(
+                        productId: int.parse('${s['id']}'),
+                        onAdd: widget.onAdd),
                   )),
                 ),
               )),

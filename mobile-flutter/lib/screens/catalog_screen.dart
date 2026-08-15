@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
@@ -8,25 +10,36 @@ String buildCatalogSearchPath({
   required String query,
   required String mode,
   required String sort,
+  String scope = 'all',
   String? minPrice,
   String? maxPrice,
   bool inStockOnly = false,
+  String? category,
 }) {
   final parameters = <String, String>{
     'sort': sort,
     if (query.trim().isNotEmpty) 'q': query.trim(),
     if (query.trim().isNotEmpty) 'mode': mode,
+    if (query.trim().isNotEmpty) 'scope': scope,
     if (minPrice != null && minPrice.isNotEmpty) 'minPrice': minPrice,
     if (maxPrice != null && maxPrice.isNotEmpty) 'maxPrice': maxPrice,
     if (inStockOnly) 'inStock': '1',
+    if (category != null && category.isNotEmpty) 'category': category,
   };
   return Uri(path: '/search', queryParameters: parameters).toString();
 }
 
 class CatalogScreen extends StatefulWidget {
-  const CatalogScreen({super.key, required this.onOpenProduct});
+  const CatalogScreen({
+    super.key,
+    required this.isActive,
+    required this.onOpenProduct,
+    this.categorySlug,
+  });
 
+  final bool isActive;
   final void Function(int id) onOpenProduct;
+  final String? categorySlug;
 
   @override
   State<CatalogScreen> createState() => _CatalogScreenState();
@@ -41,18 +54,48 @@ class _CatalogScreenState extends State<CatalogScreen> {
   final minPriceController = TextEditingController();
   final maxPriceController = TextEditingController();
   String mode = 'contains';
+  String scope = 'all';
   String sort = 'newest';
   bool inStockOnly = false;
   int _requestVersion = 0;
+  Timer? syncTimer;
+  String? categorySlug;
+  List<Map<String, dynamic>> categories = [];
 
   @override
   void initState() {
     super.initState();
+    categorySlug = widget.categorySlug;
     load();
+    loadCategories();
+    startSync();
+  }
+
+  @override
+  void didUpdateWidget(covariant CatalogScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActive != widget.isActive) {
+      startSync();
+      if (widget.isActive) load(showLoading: false);
+    }
+    if (oldWidget.categorySlug != widget.categorySlug) {
+      categorySlug = widget.categorySlug;
+      load();
+    }
+  }
+
+  void startSync() {
+    syncTimer?.cancel();
+    if (!widget.isActive) return;
+    syncTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => load(showLoading: false),
+    );
   }
 
   @override
   void dispose() {
+    syncTimer?.cancel();
     queryController.dispose();
     minPriceController.dispose();
     maxPriceController.dispose();
@@ -64,13 +107,24 @@ class _CatalogScreenState extends State<CatalogScreen> {
     return value.isEmpty ? null : value;
   }
 
-  Future<void> load() async {
+  Future<void> loadCategories() async {
+    try {
+      final items = await api.items('/categories');
+      if (mounted) setState(() => categories = items);
+    } catch (_) {
+      // Le catalogue reste utilisable sans ce filtre.
+    }
+  }
+
+  Future<void> load({bool showLoading = true}) async {
     final requestVersion = ++_requestVersion;
-    setState(() {
-      loading = true;
-      errorMessage = null;
-      validationMessage = null;
-    });
+    if (showLoading) {
+      setState(() {
+        loading = true;
+        errorMessage = null;
+        validationMessage = null;
+      });
+    }
 
     try {
       final minPrice = normalizedPrice(minPriceController);
@@ -93,10 +147,12 @@ class _CatalogScreenState extends State<CatalogScreen> {
       final path = buildCatalogSearchPath(
         query: queryController.text,
         mode: mode,
+        scope: scope,
         sort: sort,
         minPrice: minPrice,
         maxPrice: maxPrice,
         inStockOnly: inStockOnly,
+        category: categorySlug,
       );
       final items = await api.items(path);
       if (!mounted || requestVersion != _requestVersion) return;
@@ -109,11 +165,13 @@ class _CatalogScreenState extends State<CatalogScreen> {
       });
     } catch (_) {
       if (!mounted || requestVersion != _requestVersion) return;
-      setState(() {
-        loading = false;
-        errorMessage =
-            'Impossible de charger le catalogue. Verifiez votre connexion puis reessayez.';
-      });
+      if (showLoading || products.isEmpty) {
+        setState(() {
+          loading = false;
+          errorMessage =
+              'Impossible de charger le catalogue. Verifiez votre connexion puis reessayez.';
+        });
+      }
     }
   }
 
@@ -136,6 +194,29 @@ class _CatalogScreenState extends State<CatalogScreen> {
           onSubmitted: (_) => load(),
         ),
         const SizedBox(height: 10),
+        if (categories.isNotEmpty) ...[
+          DropdownButtonFormField<String?>(
+            initialValue: categorySlug,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.category_outlined),
+              labelText: 'Categorie',
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              const DropdownMenuItem(
+                  value: null, child: Text('Toutes les categories')),
+              ...categories.map((category) => DropdownMenuItem(
+                    value: '${category['slug']}',
+                    child: Text('${category['name']}'),
+                  )),
+            ],
+            onChanged: (value) {
+              setState(() => categorySlug = value);
+              load();
+            },
+          ),
+          const SizedBox(height: 10),
+        ],
         Row(
           children: [
             Expanded(
@@ -174,6 +255,25 @@ class _CatalogScreenState extends State<CatalogScreen> {
             childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             children: [
               DropdownButtonFormField<String>(
+                initialValue: scope,
+                decoration: const InputDecoration(
+                  labelText: 'Rechercher dans',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(
+                      value: 'all', child: Text('Tous les champs')),
+                  DropdownMenuItem(value: 'name', child: Text('Nom')),
+                  DropdownMenuItem(
+                      value: 'description', child: Text('Description')),
+                  DropdownMenuItem(
+                      value: 'specs',
+                      child: Text('Caracteristiques techniques')),
+                ],
+                onChanged: (value) => setState(() => scope = value ?? 'all'),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
                 key: ValueKey(mode),
                 initialValue: mode,
                 decoration: const InputDecoration(
@@ -182,10 +282,15 @@ class _CatalogScreenState extends State<CatalogScreen> {
                 ),
                 items: const [
                   DropdownMenuItem(value: 'contains', child: Text('Contient')),
-                  DropdownMenuItem(value: 'starts', child: Text('Commence par')),
-                  DropdownMenuItem(value: 'exact', child: Text('Correspondance exacte')),
+                  DropdownMenuItem(
+                      value: 'starts', child: Text('Commence par')),
+                  DropdownMenuItem(
+                      value: 'exact', child: Text('Correspondance exacte')),
+                  DropdownMenuItem(
+                      value: 'fuzzy', child: Text('Orthographe proche')),
                 ],
-                onChanged: (value) => setState(() => mode = value ?? 'contains'),
+                onChanged: (value) =>
+                    setState(() => mode = value ?? 'contains'),
               ),
               const SizedBox(height: 12),
               Row(
@@ -193,7 +298,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
                   Expanded(
                     child: TextField(
                       controller: minPriceController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(
                         labelText: 'Prix minimum',
                         suffixText: 'EUR',
@@ -205,7 +311,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
                   Expanded(
                     child: TextField(
                       controller: maxPriceController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(
                         labelText: 'Prix maximum',
                         suffixText: 'EUR',
@@ -218,7 +325,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
               const SizedBox(height: 8),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Afficher uniquement les services disponibles'),
+                title:
+                    const Text('Afficher uniquement les services disponibles'),
                 value: inStockOnly,
                 onChanged: (value) => setState(() => inStockOnly = value),
               ),
@@ -229,8 +337,10 @@ class _CatalogScreenState extends State<CatalogScreen> {
                       onPressed: () {
                         setState(() {
                           mode = 'contains';
+                          scope = 'all';
                           sort = 'newest';
                           inStockOnly = false;
+                          categorySlug = null;
                           queryController.clear();
                           minPriceController.clear();
                           maxPriceController.clear();
@@ -270,7 +380,10 @@ class _CatalogScreenState extends State<CatalogScreen> {
               child: Text(validationMessage!),
             ),
           ),
-        if (!loading && errorMessage == null && validationMessage == null && products.isEmpty)
+        if (!loading &&
+            errorMessage == null &&
+            validationMessage == null &&
+            products.isEmpty)
           const Padding(
             padding: EdgeInsets.all(24),
             child: Text('Aucun resultat.'),

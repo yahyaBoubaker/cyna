@@ -50,11 +50,47 @@ class _CynaShellState extends State<CynaShell> {
   bool sessionLoading = true;
   String? sessionError;
   int ordersRefreshVersion = 0;
+  String? catalogCategorySlug;
 
   @override
   void initState() {
     super.initState();
     restoreSession();
+    restoreCart();
+  }
+
+  Future<void> restoreCart() async {
+    final saved = await api.readCart();
+    if (!mounted) return;
+    setState(() {
+      cart
+        ..clear()
+        ..addAll(saved.map((item) {
+          final rawProduct = item['product'];
+          return CartLine(
+            product: rawProduct is Map
+                ? Map<String, dynamic>.from(rawProduct)
+                : <String, dynamic>{},
+            durationMonths: int.tryParse('${item['durationMonths']}') ?? 12,
+            quantity: int.tryParse('${item['quantity']}') ?? 1,
+          );
+        }).where((line) => line.product['id'] != null));
+    });
+  }
+
+  Future<void> persistCart() => api.saveCart(
+        cart
+            .map((line) => {
+                  'product': line.product,
+                  'durationMonths': line.durationMonths,
+                  'quantity': line.quantity,
+                })
+            .toList(),
+      );
+
+  void cartChanged() {
+    setState(() {});
+    persistCart();
   }
 
   Future<void> restoreSession() async {
@@ -62,6 +98,7 @@ class _CynaShellState extends State<CynaShell> {
       sessionLoading = true;
       sessionError = null;
     });
+    persistCart();
 
     try {
       final token = await api.readToken();
@@ -148,13 +185,25 @@ class _CynaShellState extends State<CynaShell> {
 
     final pages = [
       HomeScreen(
+          isActive: index == 0,
           onOpenProduct: openProduct,
-          onSeeCatalog: () => setState(() => index = 1)),
-      CatalogScreen(onOpenProduct: openProduct),
+          onSeeCatalog: () => setState(() {
+                catalogCategorySlug = null;
+                index = 1;
+              }),
+          onSelectCategory: (category) => setState(() {
+                catalogCategorySlug = '${category['slug']}';
+                index = 1;
+              })),
+      CatalogScreen(
+        isActive: index == 1,
+        categorySlug: catalogCategorySlug,
+        onOpenProduct: openProduct,
+      ),
       CartScreen(
         cart: cart,
         isLoggedIn: user != null,
-        onCartChanged: () => setState(() {}),
+        onCartChanged: cartChanged,
         onNeedLogin: () => setState(() => index = 3),
       ),
       AccountScreen(

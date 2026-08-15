@@ -29,6 +29,8 @@ class _AddressScreenState extends State<AddressScreen> {
   String? loadError;
   String message = '';
   String saveError = '';
+  List<Map<String, dynamic>> addresses = [];
+  int? selectedId;
 
   @override
   void initState() {
@@ -59,10 +61,13 @@ class _AddressScreenState extends State<AddressScreen> {
       loadError = null;
     });
     try {
-      final data = await api.get('/me/address');
+      final items = await api.items('/me/addresses');
       if (!mounted) return;
-      final address = data['address'];
-      if (address is Map) fill(Map<String, dynamic>.from(address));
+      addresses = items;
+      if (items.isNotEmpty) {
+        selectedId = int.tryParse('${items.first['id']}');
+        fill(items.first);
+      }
       setState(() => loading = false);
     } catch (_) {
       if (!mounted) return;
@@ -87,6 +92,24 @@ class _AddressScreenState extends State<AddressScreen> {
     country.text = '${address['country'] ?? 'France'}';
   }
 
+  void newAddress() {
+    selectedId = null;
+    company.clear();
+    firstName.text = '${widget.user['firstName'] ?? ''}';
+    lastName.text = '${widget.user['lastName'] ?? ''}';
+    line1.clear();
+    line2.clear();
+    city.clear();
+    region.clear();
+    postalCode.clear();
+    phone.clear();
+    country.text = 'France';
+    setState(() {
+      message = '';
+      saveError = '';
+    });
+  }
+
   Future<void> save() async {
     setState(() {
       saving = true;
@@ -94,7 +117,7 @@ class _AddressScreenState extends State<AddressScreen> {
       message = '';
     });
     try {
-      final data = await api.put('/me/address', {
+      final payload = {
         'company': company.text.trim(),
         'firstName': firstName.text.trim(),
         'lastName': lastName.text.trim(),
@@ -105,11 +128,17 @@ class _AddressScreenState extends State<AddressScreen> {
         'postalCode': postalCode.text.trim(),
         'phone': phone.text.trim(),
         'country': country.text.trim(),
-      });
+      };
+      final data = selectedId == null
+          ? await api.post('/me/addresses', payload)
+          : await api.put('/me/addresses/$selectedId', payload);
       if (!mounted) return;
       final address = data['address'];
       if (address is Map) fill(Map<String, dynamic>.from(address));
-      setState(() => message = 'Adresse de facturation enregistree.');
+      await load();
+      if (mounted) {
+        setState(() => message = 'Adresse de facturation enregistree.');
+      }
     } catch (exception) {
       if (mounted) {
         setState(() {
@@ -119,6 +148,14 @@ class _AddressScreenState extends State<AddressScreen> {
     } finally {
       if (mounted) setState(() => saving = false);
     }
+  }
+
+  Future<void> deleteAddress() async {
+    if (selectedId == null) return;
+    await api.delete('/me/addresses/$selectedId');
+    if (!mounted) return;
+    newAddress();
+    await load();
   }
 
   @override
@@ -140,6 +177,34 @@ class _AddressScreenState extends State<AddressScreen> {
         const Text(
           'Cette adresse sera proposee automatiquement lors du checkout.',
         ),
+        if (addresses.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          DropdownButtonFormField<int>(
+            initialValue: selectedId,
+            decoration: const InputDecoration(
+              labelText: 'Adresse enregistree',
+              border: OutlineInputBorder(),
+            ),
+            items: addresses
+                .map((address) => DropdownMenuItem(
+                      value: int.parse('${address['id']}'),
+                      child: Text('${address['line1']} - ${address['city']}'),
+                    ))
+                .toList(),
+            onChanged: (id) {
+              final address =
+                  addresses.firstWhere((item) => '${item['id']}' == '$id');
+              setState(() => selectedId = id);
+              fill(address);
+            },
+          ),
+        ],
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: newAddress,
+          icon: const Icon(Icons.add_location_alt_outlined),
+          label: const Text('Ajouter une nouvelle adresse'),
+        ),
         const SizedBox(height: 16),
         Field(controller: company, label: 'Entreprise (optionnel)'),
         Row(
@@ -153,7 +218,8 @@ class _AddressScreenState extends State<AddressScreen> {
         Field(controller: line2, label: 'Complement (optionnel)'),
         Row(
           children: [
-            Expanded(child: Field(controller: postalCode, label: 'Code postal')),
+            Expanded(
+                child: Field(controller: postalCode, label: 'Code postal')),
             const SizedBox(width: 10),
             Expanded(child: Field(controller: city, label: 'Ville')),
           ],
@@ -183,10 +249,17 @@ class _AddressScreenState extends State<AddressScreen> {
               : const Icon(Icons.save_outlined),
           label: const Text('Enregistrer l adresse'),
         ),
+        if (selectedId != null)
+          TextButton.icon(
+            onPressed: saving ? null : deleteAddress,
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Supprimer cette adresse'),
+          ),
         if (message.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 12),
-            child: Text(message, style: const TextStyle(color: Color(0xff2e7d32))),
+            child:
+                Text(message, style: const TextStyle(color: Color(0xff2e7d32))),
           ),
         if (saveError.isNotEmpty)
           Padding(

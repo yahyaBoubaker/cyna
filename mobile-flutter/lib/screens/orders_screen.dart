@@ -27,6 +27,9 @@ class OrdersScreen extends StatefulWidget {
 
 class _OrdersScreenState extends State<OrdersScreen> {
   Future<List<Map<String, dynamic>>>? orders;
+  String query = '';
+  String? selectedYear;
+  bool newestFirst = true;
 
   @override
   void didUpdateWidget(covariant OrdersScreen oldWidget) {
@@ -81,6 +84,27 @@ class _OrdersScreenState extends State<OrdersScreen> {
           );
         }
 
+        final years = items
+            .map((order) => '${order['created_at'] ?? ''}'.split('-').first)
+            .where((year) => year.length == 4)
+            .toSet()
+            .toList()
+          ..sort((a, b) => b.compareTo(a));
+        final normalizedQuery = query.trim().toLowerCase();
+        final filtered = items.where((order) {
+          final year = '${order['created_at'] ?? ''}'.split('-').first;
+          if (selectedYear != null && year != selectedYear) return false;
+          if (normalizedQuery.isEmpty) return true;
+          return '${order['id']} ${order['first_item'] ?? ''} ${order['status'] ?? ''}'
+              .toLowerCase()
+              .contains(normalizedQuery);
+        }).toList()
+          ..sort((a, b) {
+            final comparison =
+                '${a['created_at']}'.compareTo('${b['created_at']}');
+            return newestFirst ? -comparison : comparison;
+          });
+
         return RefreshIndicator(
           onRefresh: reload,
           child: ListView(
@@ -91,7 +115,53 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 12),
-              ...items.map((order) {
+              TextField(
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search),
+                  labelText: 'Rechercher un numero ou un service',
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (value) => setState(() => query = value),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String?>(
+                      initialValue: selectedYear,
+                      decoration: const InputDecoration(
+                        labelText: 'Annee',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                            value: null, child: Text('Toutes')),
+                        ...years.map((year) =>
+                            DropdownMenuItem(value: year, child: Text(year))),
+                      ],
+                      onChanged: (value) =>
+                          setState(() => selectedYear = value),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  IconButton.filledTonal(
+                    tooltip: newestFirst
+                        ? 'Plus recentes en premier'
+                        : 'Plus anciennes en premier',
+                    onPressed: () => setState(() => newestFirst = !newestFirst),
+                    icon: Icon(newestFirst
+                        ? Icons.arrow_downward
+                        : Icons.arrow_upward),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (filtered.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text('Aucune commande ne correspond aux filtres.'),
+                ),
+              ...filtered.map((order) {
                 final status = orderStatusLabel(order['status']);
                 return Card(
                   child: ListTile(
@@ -245,7 +315,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        Text('Services commandes', style: Theme.of(context).textTheme.titleLarge),
+        Text('Services commandes',
+            style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8),
         if (items.isEmpty)
           const Card(
@@ -326,7 +397,9 @@ class _DetailRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(child: Text(label, style: const TextStyle(color: Colors.black54))),
+          Expanded(
+              child:
+                  Text(label, style: const TextStyle(color: Colors.black54))),
           const SizedBox(width: 12),
           Flexible(
             child: Text(

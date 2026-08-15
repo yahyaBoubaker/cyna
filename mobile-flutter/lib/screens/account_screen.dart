@@ -11,7 +11,11 @@ class AccountScreen extends StatefulWidget {
   final void Function(Map<String, dynamic> user) onLogin;
   final Future<void> Function() onLogout;
 
-  const AccountScreen({super.key, required this.user, required this.onLogin, required this.onLogout});
+  const AccountScreen(
+      {super.key,
+      required this.user,
+      required this.onLogin,
+      required this.onLogout});
 
   @override
   State<AccountScreen> createState() => _AccountScreenState();
@@ -58,7 +62,8 @@ class _AccountScreenState extends State<AccountScreen> {
 
   // Etape 1 : le mot de passe seul ne suffit plus, l'API envoie un code 2FA par e-mail.
   Future<void> login() => run(() async {
-        final data = await api.post('/auth/login', {'email': email.text, 'password': password.text});
+        final data = await api.post(
+            '/auth/login', {'email': email.text, 'password': password.text});
         if (!mounted) return;
         if (data['status'] == '2fa_required') {
           setState(() {
@@ -70,7 +75,8 @@ class _AccountScreenState extends State<AccountScreen> {
 
   // Etape 2 : le code a 6 chiffres delivre le jeton JWT.
   Future<void> verifyCode() => run(() async {
-        final data = await api.post('/auth/verify-2fa', {'email': email.text, 'code': code.text});
+        final data = await api
+            .post('/auth/verify-2fa', {'email': email.text, 'code': code.text});
         await api.saveToken('${data['token']}');
         if (!mounted) return;
         widget.onLogin(Map<String, dynamic>.from(data['user'] as Map));
@@ -94,7 +100,8 @@ class _AccountScreenState extends State<AccountScreen> {
       });
 
   Future<void> forgot() => run(() async {
-        final data = await api.post('/auth/forgot-password', {'email': email.text});
+        final data =
+            await api.post('/auth/forgot-password', {'email': email.text});
         if (!mounted) return;
         setState(() {
           info = '${data['message']}';
@@ -138,13 +145,21 @@ class _AccountScreenState extends State<AccountScreen> {
         if (info.isNotEmpty)
           Card(
             color: const Color(0xffe5f7fb),
-            child: Padding(padding: const EdgeInsets.all(12), child: Text(info)),
+            child:
+                Padding(padding: const EdgeInsets.all(12), child: Text(info)),
           ),
         const SizedBox(height: 8),
         if (mode == 'code') ...[
-          Field(controller: code, label: 'Code a 6 chiffres recu par e-mail', keyboard: TextInputType.number),
-          FilledButton(onPressed: loading ? null : verifyCode, child: const Text('Se connecter')),
-          TextButton(onPressed: loading ? null : login, child: const Text('Renvoyer un code')),
+          Field(
+              controller: code,
+              label: 'Code a 6 chiffres recu par e-mail',
+              keyboard: TextInputType.number),
+          FilledButton(
+              onPressed: loading ? null : verifyCode,
+              child: const Text('Se connecter')),
+          TextButton(
+              onPressed: loading ? null : login,
+              child: const Text('Renvoyer un code')),
           TextButton(
             onPressed: () => setState(() {
               mode = 'login';
@@ -199,8 +214,12 @@ class _AccountScreenState extends State<AccountScreen> {
             Field(controller: firstName, label: 'Prenom'),
             Field(controller: lastName, label: 'Nom'),
           ],
-          Field(controller: email, label: 'Email', keyboard: TextInputType.emailAddress),
-          if (mode != 'forgot') Field(controller: password, label: 'Mot de passe', obscure: true),
+          Field(
+              controller: email,
+              label: 'Email',
+              keyboard: TextInputType.emailAddress),
+          if (mode != 'forgot')
+            Field(controller: password, label: 'Mot de passe', obscure: true),
           if (mode == 'register')
             const Padding(
               padding: EdgeInsets.only(bottom: 8),
@@ -228,7 +247,8 @@ class _AccountScreenState extends State<AccountScreen> {
               mode = mode == 'register' ? 'login' : 'register';
               info = '';
             }),
-            child: Text(mode == 'register' ? 'J ai deja un compte' : 'Creer un compte'),
+            child: Text(
+                mode == 'register' ? 'J ai deja un compte' : 'Creer un compte'),
           ),
           if (mode == 'login')
             TextButton(
@@ -247,7 +267,8 @@ class _AccountScreenState extends State<AccountScreen> {
               child: const Text('Retour a la connexion'),
             ),
         ],
-        if (error.isNotEmpty) Text(error, style: const TextStyle(color: Colors.red)),
+        if (error.isNotEmpty)
+          Text(error, style: const TextStyle(color: Colors.red)),
       ],
     );
   }
@@ -277,7 +298,8 @@ class _AccountScreenState extends State<AccountScreen> {
           child: ListTile(
             leading: const Icon(Icons.location_on_outlined),
             title: const Text('Adresse de facturation'),
-            subtitle: const Text('Ajouter ou modifier l adresse utilisee au checkout'),
+            subtitle: const Text(
+                'Ajouter ou modifier l adresse utilisee au checkout'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => AddressScreen(user: user)),
@@ -289,7 +311,8 @@ class _AccountScreenState extends State<AccountScreen> {
           child: ListTile(
             leading: const Icon(Icons.credit_card_outlined),
             title: const Text('Paiements'),
-            subtitle: const Text('Consulter les paiements et les cartes masquees'),
+            subtitle:
+                const Text('Consulter les paiements et les cartes masquees'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const PaymentsScreen()),
@@ -301,14 +324,16 @@ class _AccountScreenState extends State<AccountScreen> {
         const SizedBox(height: 8),
         const SubscriptionsList(),
         const SizedBox(height: 16),
-        Text('Aide et informations', style: Theme.of(context).textTheme.titleLarge),
+        Text('Aide et informations',
+            style: Theme.of(context).textTheme.titleLarge),
         Card(
           child: Column(
             children: [
               ListTile(
                 leading: const Icon(Icons.support_agent),
                 title: const Text('Contacter le support'),
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ContactScreen())),
+                onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const ContactScreen())),
               ),
               ListTile(
                 leading: const Icon(Icons.gavel_outlined),
@@ -353,7 +378,11 @@ class _AccountScreenState extends State<AccountScreen> {
       builder: (_) => AlertDialog(
         title: Text(title),
         content: SingleChildScrollView(child: Text(body)),
-        actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Fermer'))],
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Fermer'))
+        ],
       ),
     );
   }
@@ -387,7 +416,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   @override
   void initState() {
     super.initState();
-    firstName = TextEditingController(text: '${widget.user['firstName'] ?? ''}');
+    firstName =
+        TextEditingController(text: '${widget.user['firstName'] ?? ''}');
     lastName = TextEditingController(text: '${widget.user['lastName'] ?? ''}');
     newEmail = TextEditingController(text: '${widget.user['email'] ?? ''}');
   }
@@ -464,7 +494,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text('Informations personnelles', style: Theme.of(context).textTheme.titleLarge),
+          Text('Informations personnelles',
+              style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 10),
           Field(controller: firstName, label: 'Prenom'),
           Field(controller: lastName, label: 'Nom'),
@@ -473,9 +504,11 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
             child: const Text('Enregistrer le profil'),
           ),
           const Divider(height: 40),
-          Text('Changer d e-mail', style: Theme.of(context).textTheme.titleLarge),
+          Text('Changer d e-mail',
+              style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 6),
-          const Text('Un lien de confirmation sera envoye a la nouvelle adresse.'),
+          const Text(
+              'Un lien de confirmation sera envoye a la nouvelle adresse.'),
           const SizedBox(height: 10),
           Field(
             controller: newEmail,
@@ -492,7 +525,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
             child: const Text('Envoyer la confirmation'),
           ),
           const Divider(height: 40),
-          Text('Changer de mot de passe', style: Theme.of(context).textTheme.titleLarge),
+          Text('Changer de mot de passe',
+              style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 10),
           Field(
             controller: currentPassword,
@@ -521,7 +555,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           if (info.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 16),
-              child: Text(info, style: const TextStyle(color: Color(0xff2e7d32))),
+              child:
+                  Text(info, style: const TextStyle(color: Color(0xff2e7d32))),
             ),
           if (error.isNotEmpty)
             Padding(
@@ -543,30 +578,63 @@ class SubscriptionsList extends StatefulWidget {
 
 class _SubscriptionsListState extends State<SubscriptionsList> {
   List<Map<String, dynamic>>? subs;
+  String? error;
 
   @override
   void initState() {
     super.initState();
+    load();
+  }
+
+  Future<void> load() async {
+    setState(() => error = null);
     api.items('/me/subscriptions').then((items) {
       if (mounted) setState(() => subs = items);
     }).catchError((_) {
-      if (mounted) setState(() => subs = []);
+      if (mounted) {
+        setState(() => error = 'Impossible de charger les abonnements.');
+      }
     });
+  }
+
+  Future<void> action(int id, String action) async {
+    try {
+      await api.patch('/me/subscriptions/$id', {'action': action});
+      await load();
+    } catch (exception) {
+      if (mounted) setState(() => error = '$exception');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (error != null) {
+      return Text(error!, style: const TextStyle(color: Colors.red));
+    }
     if (subs == null) return const Center(child: CircularProgressIndicator());
-    if (subs!.isEmpty) return const Text('Aucun abonnement actif pour le moment.');
+    if (subs!.isEmpty) {
+      return const Text('Aucun abonnement actif pour le moment.');
+    }
     return Column(
       children: subs!.map((s) {
-        final active = s['status'] == 'active' && DateTime.tryParse('${s['ends_at']}')?.isAfter(DateTime.now()) == true;
+        final active = s['status'] == 'active' &&
+            DateTime.tryParse('${s['ends_at']}')?.isAfter(DateTime.now()) ==
+                true;
         return Card(
           child: ListTile(
-            leading: Icon(active ? Icons.verified : Icons.history, color: active ? const Color(0xff2e7d32) : Colors.grey),
+            leading: Icon(active ? Icons.verified : Icons.history,
+                color: active ? const Color(0xff2e7d32) : Colors.grey),
             title: Text('${s['product_name']}'),
             subtitle: Text('Jusqu au ${'${s['ends_at']}'.split(' ').first}'),
-            trailing: Text(active ? 'Actif' : 'Expire'),
+            trailing: PopupMenuButton<String>(
+              onSelected: (value) => action(int.parse('${s['id']}'), value),
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                    value: 'renew', child: Text('Renouveler 12 mois')),
+                if (active)
+                  const PopupMenuItem(value: 'cancel', child: Text('Resilier')),
+              ],
+            ),
           ),
         );
       }).toList(),

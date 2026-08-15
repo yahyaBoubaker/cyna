@@ -7,11 +7,18 @@ import '../widgets/product_widgets.dart';
 import '../widgets/state_widgets.dart';
 
 class HomeScreen extends StatefulWidget {
+  final bool isActive;
   final void Function(int id) onOpenProduct;
   final VoidCallback onSeeCatalog;
+  final void Function(Map<String, dynamic> category) onSelectCategory;
 
-  const HomeScreen(
-      {super.key, required this.onOpenProduct, required this.onSeeCatalog});
+  const HomeScreen({
+    super.key,
+    required this.isActive,
+    required this.onOpenProduct,
+    required this.onSeeCatalog,
+    required this.onSelectCategory,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -24,15 +31,41 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> featured = [];
   bool loading = true;
   String? errorMessage;
+  Timer? syncTimer;
 
   @override
   void initState() {
     super.initState();
     load();
+    startSync();
   }
 
-  Future<void> load() async {
-    if (mounted) {
+  @override
+  void didUpdateWidget(covariant HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActive != widget.isActive) {
+      startSync();
+      if (widget.isActive) load(showLoading: false);
+    }
+  }
+
+  void startSync() {
+    syncTimer?.cancel();
+    if (!widget.isActive) return;
+    syncTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => load(showLoading: false),
+    );
+  }
+
+  @override
+  void dispose() {
+    syncTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> load({bool showLoading = true}) async {
+    if (mounted && showLoading) {
       setState(() {
         loading = true;
         errorMessage = null;
@@ -56,11 +89,17 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() {
-        loading = false;
-        errorMessage =
-            'Impossible de charger l accueil. Verifiez votre connexion puis reessayez.';
-      });
+      if (showLoading ||
+          (slides.isEmpty &&
+              texts.isEmpty &&
+              categories.isEmpty &&
+              featured.isEmpty)) {
+        setState(() {
+          loading = false;
+          errorMessage =
+              'Impossible de charger l accueil. Verifiez votre connexion puis reessayez.';
+        });
+      }
     }
   }
 
@@ -108,8 +147,10 @@ class _HomeScreenState extends State<HomeScreen> {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: categories
-                  .map((c) =>
-                      CategoryTile(category: c, onTap: widget.onSeeCatalog))
+                  .map((c) => CategoryTile(
+                        category: c,
+                        onTap: () => widget.onSelectCategory(c),
+                      ))
                   .toList(),
             ),
           ),

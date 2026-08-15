@@ -85,6 +85,14 @@ class ApiService {
     return _decode(response);
   }
 
+  Future<Map<String, dynamic>> delete(String path) async {
+    final token = await _readTokenSafely();
+    final response = await _client
+        .delete(Uri.parse('$apiUrl$path'), headers: _headers(token))
+        .timeout(timeout);
+    return _decode(response);
+  }
+
   Future<List<Map<String, dynamic>>> items(String path) async {
     final data = await get(path);
     final rawItems = data['items'];
@@ -117,6 +125,24 @@ class ApiService {
   }
 
   Future<void> clearToken() => storage.delete(key: 'token');
+
+  Future<void> saveCart(List<Map<String, dynamic>> cart) =>
+      storage.write(key: 'cart', value: jsonEncode(cart));
+
+  Future<List<Map<String, dynamic>>> readCart() async {
+    try {
+      final value = await storage.read(key: 'cart');
+      if (value == null || value.isEmpty) return const [];
+      final decoded = jsonDecode(value);
+      if (decoded is! List) return const [];
+      return decoded
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
 
   Map<String, String> _headers(String? token) => {
         'Accept': 'application/json',
